@@ -130,14 +130,14 @@ public:
 		reroot(prevRoot);
 	}
 
-	void updatePathBy(std::uint64_t a, std::uint64_t b, const T& newVal)
+	void updatePathBy(std::uint64_t a, std::uint64_t b, const T& updateVal)
 	{
 		std::uint64_t prevRoot = getRoot(a);
 		reroot(a);
 
 		expose(b);
 		m_nodes[b].lazyType ^= s_lazyUpdateByBit;
-		m_nodes[b].lazyVal = newVal;
+		m_nodes[b].lazyVal = updateVal;
 
 		reroot(prevRoot);
 	}
@@ -154,6 +154,13 @@ public:
 		return m_nodes[a].virtualSubtreeSize + 1;
 	}
 
+	T querySubtree(std::uint64_t a)
+	{
+		expose(a);
+
+		return T::calcLeft(T::getPure(m_nodes[a].val), m_nodes[a].virtualSubtreeVal);
+	}
+
 private:
 	struct Node
 	{
@@ -161,15 +168,24 @@ private:
 		std::uint64_t left = std::numeric_limits<std::uint64_t>::max();
 		std::uint64_t right = std::numeric_limits<std::uint64_t>::max();
 
+		T val{};
+
 		std::uint64_t size = 1;
 		std::uint64_t subtreeSize = 1;
 		std::uint64_t virtualSubtreeSize = 0;
-
-		T val{};
+		T subtreeVal{};
+		T virtualSubtreeVal{};
 
 		std::uint8_t lazyType = 0;
 		T lazyVal{};
 	};
+
+	void updateVal(std::uint64_t node, const T& newVal)
+	{
+		m_nodes[node].subtreeVal = T::uncalc(m_nodes[node].subtreeVal, m_nodes[node].val);
+		m_nodes[node].val = newVal;
+		m_nodes[node].subtreeVal = T::calcLeft(m_nodes[node].subtreeVal, m_nodes[node].val);
+	}
 
 	void propagate(std::uint64_t node)
 	{
@@ -184,7 +200,7 @@ private:
 				m_nodes[m_nodes[node].right].lazyType ^= s_lazyReverseBit;
 			}
 			std::swap(m_nodes[node].left, m_nodes[node].right);
-			m_nodes[node].val = T::reverse(m_nodes[node].val);
+			updateVal(node, T::reverse(m_nodes[node].val));
 			m_nodes[node].lazyType ^= s_lazyReverseBit;
 		}
 
@@ -202,7 +218,7 @@ private:
 				m_nodes[m_nodes[node].right].lazyType ^= s_lazyUpdateReplaceBit;
 				m_nodes[m_nodes[node].right].lazyVal = m_nodes[node].lazyVal;
 			}
-			m_nodes[node].val = T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size);
+			updateVal(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
 			m_nodes[node].lazyType ^= s_lazyUpdateReplaceBit;
 			m_nodes[node].lazyVal = T{};
 		}
@@ -224,7 +240,7 @@ private:
 				}
 				m_nodes[m_nodes[node].right].lazyVal = T::calcLazy(m_nodes[m_nodes[node].right].lazyVal, m_nodes[node].lazyVal);
 			}
-			m_nodes[node].val = T::calcLazy(m_nodes[node].val, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
+			updateVal(node, T::calcLazy(m_nodes[node].val, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size)));
 			m_nodes[node].lazyType ^= s_lazyUpdateByBit;
 			m_nodes[node].lazyVal = T{};
 		}
@@ -240,13 +256,13 @@ private:
 			if (m_nodes[tmp].right != std::numeric_limits<std::uint64_t>::max())
 			{
 				m_nodes[tmp].virtualSubtreeSize += m_nodes[m_nodes[tmp].right].subtreeSize;
-				m_nodes[tmp].subtreeSize -= m_nodes[m_nodes[tmp].right].subtreeSize;
+				m_nodes[tmp].virtualSubtreeVal = T::calcLeft(m_nodes[tmp].virtualSubtreeVal, m_nodes[m_nodes[tmp].right].subtreeVal);
 			}
 			m_nodes[tmp].right = prev;
 			if (prev != std::numeric_limits<std::uint64_t>::max())
 			{
 				m_nodes[tmp].virtualSubtreeSize -= m_nodes[prev].subtreeSize;
-				m_nodes[tmp].subtreeSize += m_nodes[prev].subtreeSize;
+				m_nodes[tmp].virtualSubtreeVal = T::uncalc(m_nodes[tmp].virtualSubtreeVal, m_nodes[prev].subtreeVal);
 			}
 			recalc(tmp);
 			prev = tmp;
@@ -267,13 +283,6 @@ private:
 		{
 			propagate(m_nodes[node].right);
 		}
-		m_nodes[node].val = T::calcLeft(
-			T::calcRight(
-				m_nodes[node].left != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].left].val : T{},
-				T::getPure(m_nodes[node].val)
-			),
-			m_nodes[node].right != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].right].val : T{}
-		);
 		m_nodes[node].size =
 			(m_nodes[node].left != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].left].size : 0)
 			+ 1
@@ -283,6 +292,23 @@ private:
 			+ 1
 			+ (m_nodes[node].right != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].right].subtreeSize : 0)
 			+ m_nodes[node].virtualSubtreeSize;
+		m_nodes[node].val = T::calcLeft(
+			T::calcRight(
+				m_nodes[node].left != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].left].val : T{},
+				T::getPure(m_nodes[node].val)
+			),
+			m_nodes[node].right != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].right].val : T{}
+		);
+		m_nodes[node].subtreeVal = T::calcLeft(
+			T::calcLeft(
+				T::calcLeft(
+					T::getPure(m_nodes[node].val),
+					m_nodes[node].left != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].left].subtreeVal : T{}
+				),
+				m_nodes[node].right != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].right].subtreeVal : T{}
+			),
+			m_nodes[node].virtualSubtreeVal
+		);
 	}
 
 	void splay(std::uint64_t node)
@@ -438,6 +464,11 @@ struct Empty
 	{
 		return Empty{};
 	}
+
+	static Empty uncalc(const Empty& empty, const Empty& uncalcEmpty)
+	{
+		return Empty{};
+	}
 };
 
 struct Min
@@ -487,6 +518,12 @@ struct Min
 
 	static Min reverse(const Min& min)
 	{
+		return min;
+	}
+
+	static Min uncalc(const Min& min, const Min& uncalcMin)
+	{
+		// irrevertible operations will not work with subtree queries, so just ignore
 		return min;
 	}
 };
@@ -540,6 +577,12 @@ struct Max
 	{
 		return max;
 	}
+
+	static Max uncalc(const Max& max, const Max& uncalcMax)
+	{
+		// irrevertible operations will not work with subtree queries, so just ignore
+		return max;
+	}
 };
 
 struct Sum
@@ -590,5 +633,10 @@ struct Sum
 	static Sum reverse(const Sum& sum)
 	{
 		return sum;
+	}
+
+	static Sum uncalc(const Sum& sum, const Sum& uncalcSum)
+	{
+		return Sum(sum.key, sum.sum - uncalcSum.sum);
 	}
 };
