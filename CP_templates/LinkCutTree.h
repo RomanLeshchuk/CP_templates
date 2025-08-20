@@ -35,7 +35,7 @@ public:
 		reroot(a);
 		expose(b);
 
-		m_nodes[m_nodes[b].left].parent = std::numeric_limits<std::uint64_t>::max();
+		m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
 		m_nodes[b].left = std::numeric_limits<std::uint64_t>::max();
 		recalc(b);
 
@@ -255,6 +255,8 @@ private:
 			splay(tmp);
 			if (m_nodes[tmp].right != std::numeric_limits<std::uint64_t>::max())
 			{
+				propagate(m_nodes[tmp].right);
+				recalc(m_nodes[tmp].right);
 				m_nodes[tmp].virtualSubtreeSize += m_nodes[m_nodes[tmp].right].subtreeSize;
 				m_nodes[tmp].virtualSubtreeVal = T::calcLeft(m_nodes[tmp].virtualSubtreeVal, m_nodes[m_nodes[tmp].right].subtreeVal);
 			}
