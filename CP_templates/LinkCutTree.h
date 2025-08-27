@@ -315,6 +315,12 @@ private:
 
 	void splay(std::uint64_t node)
 	{
+		if (isSplayRoot(node))
+		{
+			propagate(node);
+			return;
+		}
+
 		while (!isSplayRoot(node))
 		{
 			if (!isSplayRoot(m_nodes[node].parent))
@@ -360,8 +366,6 @@ private:
 				rotateLeft(m_nodes[node].parent);
 			}
 		}
-
-		propagate(node);
 	}
 
 	void rotateLeft(std::uint64_t node)
