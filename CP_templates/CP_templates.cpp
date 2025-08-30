@@ -6,23 +6,41 @@ using namespace std;
 
 int main()
 {
-    // subtree queries work, tested on https://uoj.ac/problem/207
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
 
-    LinkCutTree<Sum> tree(10);
+    int q;
+    cin >> q;
 
-    for (int i = 0; i < 9; ++i)
+    int last = 0;
+    LinkCutTree<Sum, StoreType::PATH_DATA> tree(q);
+
+    int lastAns = 0;
+    while (q--)
     {
-        tree.link(i, i + 1);
+        int op;
+        cin >> op;
+        if (op == 1)
+        {
+            int v;
+            cin >> v;
+            v ^= lastAns;
+            --v;
+            ++last;
+            tree.link(v, last);
+        }
+        else
+        {
+            int u, v;
+            cin >> u >> v;
+            u ^= lastAns;
+            v ^= lastAns;
+            --u;
+            --v;
+            lastAns = tree.getPathSize(u, v) - 1;
+            cout << lastAns << '\n';
+        }
     }
-
-    tree.updatePathReplace(0, 9, Sum{ 1 });
-    tree.reroot(5);
-    cout << tree.querySubtree(5).sum << '\n';
-    tree.reroot(1);
-    cout << tree.querySubtree(5).sum << '\n';
-    tree.cut(2, 3);
-    tree.reroot(5);
-    cout << tree.querySubtree(5).sum << '\n';
     
     return 0;
 }
