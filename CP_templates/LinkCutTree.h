@@ -193,6 +193,7 @@ public:
 	template <StoreType methodStoreType = storeType>
 	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>, void> updatePathReplace(std::uint64_t a, std::uint64_t b, const T& newVal)
 	{
+		// this function will not work together with updateSubtreeBy
 		if constexpr (preserveRoot)
 		{
 			std::uint64_t prevRoot = getRoot(a);
@@ -259,6 +260,7 @@ public:
 	template <StoreType methodStoreType = storeType>
 	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeBy(std::uint64_t a, const T& updateVal)
 	{
+		// this function will not work together with updatePathReplace
 		if (getRoot(a) == a)
 		{
 			expose(a);
@@ -365,12 +367,12 @@ private:
 	{
 		if constexpr (storeType >= StoreType::ALL_DATA)
 		{
-			m_nodes[node].subtreeVal = T::uncalc(m_nodes[node].subtreeVal, m_nodes[node].val);
+			m_nodes[node].subtreeVal = T::uncalcLazy(m_nodes[node].subtreeVal, m_nodes[node].val);
 		}
 		m_nodes[node].val = newVal;
 		if constexpr (storeType >= StoreType::ALL_DATA)
 		{
-			m_nodes[node].subtreeVal = T::calcLeft(m_nodes[node].subtreeVal, m_nodes[node].val);
+			m_nodes[node].subtreeVal = T::calcLazy(m_nodes[node].subtreeVal, m_nodes[node].val);
 		}
 	}
 
@@ -380,7 +382,7 @@ private:
 		m_nodes[node].val = T::calcLazy(m_nodes[node].val, updateVal);
 		if constexpr (storeType >= StoreType::ALL_DATA)
 		{
-			m_nodes[node].subtreeVal = T::calcLeft(m_nodes[node].subtreeVal, updateVal);
+			m_nodes[node].subtreeVal = T::calcLazy(m_nodes[node].subtreeVal, updateVal);
 		}
 	}
 
@@ -388,8 +390,8 @@ private:
 	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeValBy(std::uint64_t node, const T& updateVal)
 	{
 		m_nodes[node].val = T::calcLazy(m_nodes[node].val, T::calcMany(updateVal, m_nodes[node].size));
-		m_nodes[node].virtualSubtreeVal = T::calcLeft(m_nodes[node].virtualSubtreeVal, T::calcMany(updateVal, m_nodes[node].virtualSubtreeSize));
-		m_nodes[node].subtreeVal = T::calcLeft(m_nodes[node].subtreeVal, T::calcMany(updateVal, m_nodes[node].subtreeSize));
+		m_nodes[node].virtualSubtreeVal = T::calcLazy(m_nodes[node].virtualSubtreeVal, T::calcMany(updateVal, m_nodes[node].virtualSubtreeSize));
+		m_nodes[node].subtreeVal = T::calcLazy(m_nodes[node].subtreeVal, T::calcMany(updateVal, m_nodes[node].subtreeSize));
 		m_nodes[node].subtreeAddedVal = T::calcLazy(m_nodes[node].subtreeAddedVal, updateVal);
 	}
 
@@ -493,7 +495,7 @@ private:
 					{
 						propagate(m_nodes[tmp].child[1]);
 						recalc(m_nodes[tmp].child[1]);
-						m_nodes[tmp].virtualSubtreeVal = T::calcLeft(m_nodes[tmp].virtualSubtreeVal, m_nodes[m_nodes[tmp].child[1]].subtreeVal);
+						m_nodes[tmp].virtualSubtreeVal = T::calcLazy(m_nodes[tmp].virtualSubtreeVal, m_nodes[m_nodes[tmp].child[1]].subtreeVal);
 					}
 				}
 			}
@@ -506,7 +508,7 @@ private:
 					if constexpr (!std::is_same_v<T, Empty>)
 					{
 						propagateFromParent(prev);
-						m_nodes[tmp].virtualSubtreeVal = T::uncalc(m_nodes[tmp].virtualSubtreeVal, m_nodes[prev].subtreeVal);
+						m_nodes[tmp].virtualSubtreeVal = T::uncalcLazy(m_nodes[tmp].virtualSubtreeVal, m_nodes[prev].subtreeVal);
 					}
 				}
 			}
@@ -696,7 +698,7 @@ private:
 
 struct Min
 {
-	// irrevertible operations will not work with subtree queries, so just ignore
+	// querySubtree is impossible for irrevertible operations
 
 	Min() = default;
 
@@ -712,9 +714,9 @@ struct Min
 	{
 	}
 
-	std::int64_t key = std::numeric_limits<std::int64_t>::max();
+	std::int64_t key = 0;
 
-	std::int64_t min = std::numeric_limits<std::int64_t>::max();
+	std::int64_t min = 0;
 
 	static Min getPure(const Min& min)
 	{
@@ -745,11 +747,16 @@ struct Min
 	{
 		return min;
 	}
+
+	static Min uncalcLazy(const Min& min, const Min& uncalcMin)
+	{
+		return Min(min.key - uncalcMin.key, min.min - uncalcMin.min);
+	}
 };
 
 struct Max
 {
-	// irrevertible operations will not work with subtree queries, so just ignore
+	// querySubtree is impossible for irrevertible operations
 
 	Max() = default;
 
@@ -765,9 +772,9 @@ struct Max
 	{
 	}
 
-	std::int64_t key = std::numeric_limits<std::int64_t>::min();
+	std::int64_t key = 0;
 
-	std::int64_t max = std::numeric_limits<std::int64_t>::min();
+	std::int64_t max = 0;
 
 	static Max getPure(const Max& max)
 	{
@@ -797,6 +804,11 @@ struct Max
 	static Max reverse(const Max& max)
 	{
 		return max;
+	}
+
+	static Max uncalcLazy(const Max& min, const Max& uncalcMin)
+	{
+		return Max(min.key - uncalcMin.key, min.max - uncalcMin.max);
 	}
 };
 
@@ -848,11 +860,6 @@ struct Sum
 	static Sum reverse(const Sum& sum)
 	{
 		return sum;
-	}
-
-	static Sum uncalc(const Sum& sum, const Sum& uncalcSum)
-	{
-		return Sum(sum.key, sum.sum - uncalcSum.sum);
 	}
 
 	static Sum uncalcLazy(const Sum& sum, const Sum& uncalcSum)
