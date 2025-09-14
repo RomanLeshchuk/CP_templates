@@ -43,6 +43,10 @@ public:
 
 		m_nodes[a].child[1] = b;
 		m_nodes[b].parent = a;
+		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		{
+			m_nodes[b].subtreeCancelVal = m_nodes[a].subtreeAddedVal;
+		}
 		if constexpr (storeType >= StoreType::PATH_DATA)
 		{
 			recalc(a);
@@ -59,6 +63,10 @@ public:
 			expose(b);
 
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
+			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+			{
+				m_nodes[a].subtreeCancelVal = T{};
+			}
 			m_nodes[b].child[0] = std::numeric_limits<std::uint64_t>::max();
 			if constexpr (storeType >= StoreType::PATH_DATA)
 			{
@@ -73,6 +81,10 @@ public:
 			expose(b);
 
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
+			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+			{
+				m_nodes[a].subtreeCancelVal = T{};
+			}
 			m_nodes[b].child[0] = std::numeric_limits<std::uint64_t>::max();
 			if constexpr (storeType >= StoreType::PATH_DATA)
 			{
@@ -97,7 +109,7 @@ public:
 			a = m_nodes[a].child[0];
 			propagate(a);
 		}
-
+		
 		splay(a);
 
 		return a;
@@ -176,7 +188,6 @@ public:
 		expose(b);
 
 		return m_nodes[b].val;
-		
 	}
 
 	template <StoreType methodStoreType = storeType>
@@ -245,6 +256,24 @@ public:
 		return T::calcLeft(T::getPure(m_nodes[a].val), m_nodes[a].virtualSubtreeVal);
 	}
 
+	template <StoreType methodStoreType = storeType>
+	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeBy(std::uint64_t a, const T& updateVal)
+	{
+		if (getRoot(a) == a)
+		{
+			expose(a);
+			updateSubtreeValBy(a, updateVal);
+			return;
+		}
+
+		std::uint64_t parent = getNthParent(a, 0);
+		cut(parent, a);
+
+		updateSubtreeValBy(a, updateVal);
+
+		link(parent, a);
+	}
+
 private:
 	template <StoreType nodeStoreType, bool isEmptyNode, typename Dummy = void>
 	struct NodeTemplate
@@ -308,6 +337,9 @@ private:
 		std::uint64_t virtualSubtreeSize = 0;
 		T subtreeVal{};
 		T virtualSubtreeVal{};
+
+		T subtreeAddedVal{};
+		T subtreeCancelVal{};
 	};
 
 	template <typename Dummy>
@@ -352,8 +384,36 @@ private:
 		}
 	}
 
+	template <StoreType methodStoreType = storeType>
+	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeValBy(std::uint64_t node, const T& updateVal)
+	{
+		m_nodes[node].val = T::calcLazy(m_nodes[node].val, T::calcMany(updateVal, m_nodes[node].size));
+		m_nodes[node].virtualSubtreeVal = T::calcLeft(m_nodes[node].virtualSubtreeVal, T::calcMany(updateVal, m_nodes[node].virtualSubtreeSize));
+		m_nodes[node].subtreeVal = T::calcLeft(m_nodes[node].subtreeVal, T::calcMany(updateVal, m_nodes[node].subtreeSize));
+		m_nodes[node].subtreeAddedVal = T::calcLazy(m_nodes[node].subtreeAddedVal, updateVal);
+	}
+
+	template <StoreType methodStoreType = storeType>
+	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> propagateFromParent(std::uint64_t node)
+	{
+		updateSubtreeValBy(node, T::uncalcLazy(
+			m_nodes[node].parent == std::numeric_limits<std::uint64_t>::max()
+			? T{}
+			: m_nodes[m_nodes[node].parent].subtreeAddedVal,
+			m_nodes[node].subtreeCancelVal
+		));
+		m_nodes[node].subtreeCancelVal = m_nodes[node].parent == std::numeric_limits<std::uint64_t>::max()
+			? T{}
+			: m_nodes[m_nodes[node].parent].subtreeAddedVal;
+	}
+
 	void propagate(std::uint64_t node)
 	{
+		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		{
+			propagateFromParent(node);
+		}
+
 		if (m_nodes[node].lazyType & s_lazyReverseBit)
 		{
 			if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
@@ -428,14 +488,11 @@ private:
 			{
 				if (m_nodes[tmp].child[1] != std::numeric_limits<std::uint64_t>::max())
 				{
+					m_nodes[tmp].virtualSubtreeSize += m_nodes[m_nodes[tmp].child[1]].subtreeSize;
 					if constexpr (!std::is_same_v<T, Empty>)
 					{
 						propagate(m_nodes[tmp].child[1]);
 						recalc(m_nodes[tmp].child[1]);
-					}
-					m_nodes[tmp].virtualSubtreeSize += m_nodes[m_nodes[tmp].child[1]].subtreeSize;
-					if constexpr (!std::is_same_v<T, Empty>)
-					{
 						m_nodes[tmp].virtualSubtreeVal = T::calcLeft(m_nodes[tmp].virtualSubtreeVal, m_nodes[m_nodes[tmp].child[1]].subtreeVal);
 					}
 				}
@@ -448,6 +505,7 @@ private:
 					m_nodes[tmp].virtualSubtreeSize -= m_nodes[prev].subtreeSize;
 					if constexpr (!std::is_same_v<T, Empty>)
 					{
+						propagateFromParent(prev);
 						m_nodes[tmp].virtualSubtreeVal = T::uncalc(m_nodes[tmp].virtualSubtreeVal, m_nodes[prev].subtreeVal);
 					}
 				}
@@ -586,14 +644,35 @@ private:
 			}
 		}
 		m_nodes[newParent].parent = m_nodes[node].parent;
+		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		{
+			m_nodes[newParent].subtreeCancelVal = m_nodes[newParent].parent == std::numeric_limits<std::uint64_t>::max()
+				? T{}
+				: m_nodes[m_nodes[newParent].parent].subtreeAddedVal;
+		}
 
 		m_nodes[node].parent = newParent;
+		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		{
+			if (m_nodes[newParent].child[!isRotateLeft] != std::numeric_limits<std::uint64_t>::max())
+			{
+				propagateFromParent(m_nodes[newParent].child[!isRotateLeft]);
+			}
+		}
 		m_nodes[node].child[isRotateLeft] = m_nodes[newParent].child[!isRotateLeft];
 		if (m_nodes[node].child[isRotateLeft] != std::numeric_limits<std::uint64_t>::max())
 		{
 			m_nodes[m_nodes[node].child[isRotateLeft]].parent = node;
+			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+			{
+				m_nodes[m_nodes[node].child[isRotateLeft]].subtreeCancelVal = m_nodes[node].subtreeAddedVal;
+			}
 		}
 		m_nodes[newParent].child[!isRotateLeft] = node;
+		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		{
+			m_nodes[node].subtreeCancelVal = m_nodes[newParent].subtreeAddedVal;
+		}
 
 		if constexpr (storeType >= StoreType::PATH_DATA)
 		{
@@ -617,6 +696,8 @@ private:
 
 struct Min
 {
+	// irrevertible operations will not work with subtree queries, so just ignore
+
 	Min() = default;
 
 	Min(std::int64_t val) :
@@ -664,16 +745,12 @@ struct Min
 	{
 		return min;
 	}
-
-	static Min uncalc(const Min& min, const Min& uncalcMin)
-	{
-		// irrevertible operations will not work with subtree queries, so just ignore
-		return min;
-	}
 };
 
 struct Max
 {
+	// irrevertible operations will not work with subtree queries, so just ignore
+
 	Max() = default;
 
 	Max(std::int64_t val) :
@@ -719,12 +796,6 @@ struct Max
 
 	static Max reverse(const Max& max)
 	{
-		return max;
-	}
-
-	static Max uncalc(const Max& max, const Max& uncalcMax)
-	{
-		// irrevertible operations will not work with subtree queries, so just ignore
 		return max;
 	}
 };
@@ -782,5 +853,10 @@ struct Sum
 	static Sum uncalc(const Sum& sum, const Sum& uncalcSum)
 	{
 		return Sum(sum.key, sum.sum - uncalcSum.sum);
+	}
+
+	static Sum uncalcLazy(const Sum& sum, const Sum& uncalcSum)
+	{
+		return Sum(sum.key - uncalcSum.key, sum.sum - uncalcSum.sum);
 	}
 };
