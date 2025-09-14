@@ -65,7 +65,7 @@ public:
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
 			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
 			{
-				m_nodes[a].subtreeCancelVal = T{};
+				m_nodes[a].subtreeCancelVal = T::s_neutralCalcLazyVal;
 			}
 			m_nodes[b].child[0] = std::numeric_limits<std::uint64_t>::max();
 			if constexpr (storeType >= StoreType::PATH_DATA)
@@ -83,7 +83,7 @@ public:
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
 			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
 			{
-				m_nodes[a].subtreeCancelVal = T{};
+				m_nodes[a].subtreeCancelVal = T::s_neutralCalcLazyVal;
 			}
 			m_nodes[b].child[0] = std::numeric_limits<std::uint64_t>::max();
 			if constexpr (storeType >= StoreType::PATH_DATA)
@@ -400,12 +400,12 @@ private:
 	{
 		updateSubtreeValBy(node, T::uncalcLazy(
 			m_nodes[node].parent == std::numeric_limits<std::uint64_t>::max()
-			? T{}
+			? T::s_neutralCalcLazyVal
 			: m_nodes[m_nodes[node].parent].subtreeAddedVal,
 			m_nodes[node].subtreeCancelVal
 		));
 		m_nodes[node].subtreeCancelVal = m_nodes[node].parent == std::numeric_limits<std::uint64_t>::max()
-			? T{}
+			? T::s_neutralCalcLazyVal
 			: m_nodes[m_nodes[node].parent].subtreeAddedVal;
 	}
 
@@ -452,7 +452,7 @@ private:
 				}
 				updateValReplace(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
 				m_nodes[node].lazyType ^= s_lazyUpdateReplaceBit;
-				m_nodes[node].lazyVal = T{};
+				m_nodes[node].lazyVal = T::s_neutralCalcLazyVal;
 			}
 			else if (m_nodes[node].lazyType & s_lazyUpdateByBit)
 			{
@@ -474,7 +474,7 @@ private:
 				}
 				updateValBy(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
 				m_nodes[node].lazyType ^= s_lazyUpdateByBit;
-				m_nodes[node].lazyVal = T{};
+				m_nodes[node].lazyVal = T::s_neutralCalcLazyVal;
 			}
 		}
 	}
@@ -546,10 +546,10 @@ private:
 		{
 			m_nodes[node].val = T::calcLeft(
 				T::calcRight(
-					m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[0]].val : T{},
+					m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[0]].val : T::s_neutralCalcVal,
 					T::getPure(m_nodes[node].val)
 				),
-				m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[1]].val : T{}
+				m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[1]].val : T::s_neutralCalcVal
 			);
 		}
 		if constexpr (storeType >= StoreType::ALL_DATA)
@@ -565,9 +565,9 @@ private:
 					T::calcLeft(
 						T::calcLeft(
 							T::getPure(m_nodes[node].val),
-							m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[0]].subtreeVal : T{}
+							m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[0]].subtreeVal : T::s_neutralCalcVal
 						),
-						m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[1]].subtreeVal : T{}
+						m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[1]].subtreeVal : T::s_neutralCalcVal
 					),
 					m_nodes[node].virtualSubtreeVal
 				);
@@ -649,7 +649,7 @@ private:
 		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
 		{
 			m_nodes[newParent].subtreeCancelVal = m_nodes[newParent].parent == std::numeric_limits<std::uint64_t>::max()
-				? T{}
+				? T::s_neutralCalcLazyVal
 				: m_nodes[m_nodes[newParent].parent].subtreeAddedVal;
 		}
 
@@ -714,6 +714,9 @@ struct Min
 	{
 	}
 
+	static Min s_neutralCalcVal;
+	static Min s_neutralCalcLazyVal;
+
 	std::int64_t key = 0;
 
 	std::int64_t min = 0;
@@ -754,6 +757,9 @@ struct Min
 	}
 };
 
+Min Min::s_neutralCalcVal(std::numeric_limits<std::int64_t>::max());
+Min Min::s_neutralCalcLazyVal(0);
+
 struct Max
 {
 	// querySubtree is impossible for irrevertible operations
@@ -771,6 +777,9 @@ struct Max
 		max{ max }
 	{
 	}
+
+	static Max s_neutralCalcVal;
+	static Max s_neutralCalcLazyVal;
 
 	std::int64_t key = 0;
 
@@ -806,11 +815,14 @@ struct Max
 		return max;
 	}
 
-	static Max uncalcLazy(const Max& min, const Max& uncalcMin)
+	static Max uncalcLazy(const Max& max, const Max& uncalcMax)
 	{
-		return Max(min.key - uncalcMin.key, min.max - uncalcMin.max);
+		return Max(max.key - uncalcMax.key, max.max - uncalcMax.max);
 	}
 };
+
+Max Max::s_neutralCalcVal(std::numeric_limits<std::int64_t>::min());
+Max Max::s_neutralCalcLazyVal(0);
 
 struct Sum
 {
@@ -827,6 +839,9 @@ struct Sum
 		sum{ sum }
 	{
 	}
+
+	static Sum s_neutralCalcVal;
+	static Sum s_neutralCalcLazyVal;
 
 	std::int64_t key = 0;
 
@@ -867,3 +882,6 @@ struct Sum
 		return Sum(sum.key - uncalcSum.key, sum.sum - uncalcSum.sum);
 	}
 };
+
+Sum Sum::s_neutralCalcVal(0);
+Sum Sum::s_neutralCalcLazyVal(0);
