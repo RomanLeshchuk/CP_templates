@@ -50,7 +50,7 @@ pair<bool, long long> queryPath(int v, int prev, int to)
     }
     if (onPath)
     {
-        res = max(res, vals[v]);
+        res += vals[v];
     }
     return { onPath, res };
 }
@@ -74,7 +74,7 @@ long long querySubtree(int v, int prev)
     {
         if (nxtV != prev)
         {
-            res = max(res, querySubtree(nxtV, v));
+            res += querySubtree(nxtV, v);
         }
     }
     return res;
@@ -93,7 +93,7 @@ int main()
     vals.resize(n);
     int root = 0;
 
-    LinkCutTree<Max, StoreType::ALL_DATA> lct(n);
+    LinkCutTree<Sum, StoreType::SUBQUERY_UPDATE_DATA> lct(n);
 
     for (int i = 1; i < n; ++i)
     {
@@ -102,8 +102,6 @@ int main()
         tree[i].push_back(parent);
         lct.link(parent, i);
     }
-
-    // update subtree by does not work with replace path together, so no replace path
 
     for (int query = 1; query <= q; ++query)
     {
@@ -129,7 +127,7 @@ int main()
             int a = dist(engine) % n;
             int b = dist(engine) % n;
             long long bruteforceRes = queryPath(a, -1, b).second;
-            long long lctRes = lct.queryPath(a, b).max;
+            long long lctRes = lct.queryPath(a, b).sum;
             if (bruteforceRes != lctRes)
             {
                 cout << lctRes << ' ' << bruteforceRes << '\n';
@@ -174,7 +172,7 @@ int main()
         }
         else if (op == 5)
         {
-            /*// query subtree
+            // query subtree
             int a = dist(engine) % n;
             long long bruteforceRes;
             if (lct.getRoot(a) == a)
@@ -185,15 +183,21 @@ int main()
             {
                 bruteforceRes = querySubtree(a, lct.getNthParent(a, 0));
             }
-            long long lctRes = lct.querySubtree(a).max;
+            long long lctRes = lct.querySubtree(a).sum;
             if (bruteforceRes != lctRes)
             {
                 cout << lctRes << ' ' << bruteforceRes << '\n';
                 cout << "bug in query subtree\n";
-            }*/
+            }
         }
     }
     
     return 0;
 }
 
+/*
+What (except explicitly template-defined) doesn't work together:
+1. {T with non-trivial reverse()} and {subtreeUpdate()}
+2. {T where uncalc() does not work} and {subtreeQuery()}
+3. {T where uncalcLazy() does not work} and {subtreeUpdate()}
+*/

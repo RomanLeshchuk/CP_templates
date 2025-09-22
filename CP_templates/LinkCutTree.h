@@ -8,7 +8,8 @@ enum class StoreType
 {
 	NO_DATA,
 	PATH_DATA,
-	ALL_DATA
+	SUBQUERY_DATA,
+	SUBQUERY_UPDATE_DATA
 };
 
 struct Empty
@@ -16,7 +17,7 @@ struct Empty
 	Empty() = delete;
 };
 
-template <typename T, StoreType storeType = StoreType::ALL_DATA, bool preserveRoot = true>
+template <typename T, StoreType storeType, bool preserveRoot = true>
 class LinkCutTree
 {
 public:
@@ -43,7 +44,7 @@ public:
 
 		m_nodes[a].child[1] = b;
 		m_nodes[b].parent = a;
-		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 		{
 			m_nodes[b].subtreeCancelVal = m_nodes[a].subtreeAddedVal;
 		}
@@ -63,7 +64,7 @@ public:
 			expose(b);
 
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
-			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 			{
 				m_nodes[a].subtreeCancelVal = T::s_neutralCalcLazyVal;
 			}
@@ -81,7 +82,7 @@ public:
 			expose(b);
 
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
-			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 			{
 				m_nodes[a].subtreeCancelVal = T::s_neutralCalcLazyVal;
 			}
@@ -109,7 +110,7 @@ public:
 			a = m_nodes[a].child[0];
 			propagate(a);
 		}
-		
+
 		splay(a);
 
 		return a;
@@ -191,9 +192,8 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>, void> updatePathReplace(std::uint64_t a, std::uint64_t b, const T& newVal)
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && methodStoreType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updatePathReplace(std::uint64_t a, std::uint64_t b, const T& newVal)
 	{
-		// this function will not work together with updateSubtreeBy
 		if constexpr (preserveRoot)
 		{
 			std::uint64_t prevRoot = getRoot(a);
@@ -242,7 +242,7 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA, std::uint64_t> getSubtreeSize(std::uint64_t a)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_DATA, std::uint64_t> getSubtreeSize(std::uint64_t a)
 	{
 		expose(a);
 
@@ -250,7 +250,7 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, T> querySubtree(std::uint64_t a)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_DATA && !std::is_same_v<T, Empty>, T> querySubtree(std::uint64_t a)
 	{
 		expose(a);
 
@@ -258,9 +258,8 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeBy(std::uint64_t a, const T& updateVal)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeBy(std::uint64_t a, const T& updateVal)
 	{
-		// this function will not work together with updatePathReplace
 		if (getRoot(a) == a)
 		{
 			expose(a);
@@ -322,7 +321,43 @@ private:
 	};
 
 	template <typename Dummy>
-	struct NodeTemplate<StoreType::ALL_DATA, false, Dummy>
+	struct NodeTemplate<StoreType::SUBQUERY_DATA, false, Dummy>
+	{
+		std::uint64_t parent = std::numeric_limits<std::uint64_t>::max();
+		std::uint64_t child[2]{
+			std::numeric_limits<std::uint64_t>::max(),
+			std::numeric_limits<std::uint64_t>::max()
+		};
+		std::uint8_t lazyType = 0;
+
+		std::uint64_t size = 1;
+		T val{};
+		T lazyVal{};
+
+		std::uint64_t subtreeSize = 1;
+		std::uint64_t virtualSubtreeSize = 0;
+		T subtreeVal{};
+		T virtualSubtreeVal{};
+	};
+
+	template <typename Dummy>
+	struct NodeTemplate<StoreType::SUBQUERY_DATA, true, Dummy>
+	{
+		std::uint64_t parent = std::numeric_limits<std::uint64_t>::max();
+		std::uint64_t child[2]{
+			std::numeric_limits<std::uint64_t>::max(),
+			std::numeric_limits<std::uint64_t>::max()
+		};
+		std::uint8_t lazyType = 0;
+
+		std::uint64_t size = 1;
+
+		std::uint64_t subtreeSize = 1;
+		std::uint64_t virtualSubtreeSize = 0;
+	};
+
+	template <typename Dummy>
+	struct NodeTemplate<StoreType::SUBQUERY_UPDATE_DATA, false, Dummy>
 	{
 		std::uint64_t parent = std::numeric_limits<std::uint64_t>::max();
 		std::uint64_t child[2]{
@@ -345,7 +380,7 @@ private:
 	};
 
 	template <typename Dummy>
-	struct NodeTemplate<StoreType::ALL_DATA, true, Dummy>
+	struct NodeTemplate<StoreType::SUBQUERY_UPDATE_DATA, true, Dummy>
 	{
 		std::uint64_t parent = std::numeric_limits<std::uint64_t>::max();
 		std::uint64_t child[2]{
@@ -363,16 +398,16 @@ private:
 	using Node = NodeTemplate<storeType, std::is_same_v<T, Empty>>;
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>, void> updateValReplace(std::uint64_t node, const T& newVal)
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && storeType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updateValReplace(std::uint64_t node, const T& newVal)
 	{
-		if constexpr (storeType >= StoreType::ALL_DATA)
+		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 		{
-			m_nodes[node].subtreeVal = T::uncalcLazy(m_nodes[node].subtreeVal, m_nodes[node].val);
+			m_nodes[node].subtreeVal = T::uncalc(m_nodes[node].subtreeVal, m_nodes[node].val);
 		}
 		m_nodes[node].val = newVal;
-		if constexpr (storeType >= StoreType::ALL_DATA)
+		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 		{
-			m_nodes[node].subtreeVal = T::calcLazy(m_nodes[node].subtreeVal, m_nodes[node].val);
+			m_nodes[node].subtreeVal = T::calcLeft(m_nodes[node].subtreeVal, m_nodes[node].val);
 		}
 	}
 
@@ -380,14 +415,14 @@ private:
 	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>, void> updateValBy(std::uint64_t node, const T& updateVal)
 	{
 		m_nodes[node].val = T::calcLazy(m_nodes[node].val, updateVal);
-		if constexpr (storeType >= StoreType::ALL_DATA)
+		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 		{
 			m_nodes[node].subtreeVal = T::calcLazy(m_nodes[node].subtreeVal, updateVal);
 		}
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeValBy(std::uint64_t node, const T& updateVal)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeValBy(std::uint64_t node, const T& updateVal)
 	{
 		m_nodes[node].val = T::calcLazy(m_nodes[node].val, T::calcMany(updateVal, m_nodes[node].size));
 		m_nodes[node].virtualSubtreeVal = T::calcLazy(m_nodes[node].virtualSubtreeVal, T::calcMany(updateVal, m_nodes[node].virtualSubtreeSize));
@@ -396,7 +431,7 @@ private:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>, void> propagateFromParent(std::uint64_t node)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> propagateFromParent(std::uint64_t node)
 	{
 		updateSubtreeValBy(node, T::uncalcLazy(
 			m_nodes[node].parent == std::numeric_limits<std::uint64_t>::max()
@@ -411,7 +446,7 @@ private:
 
 	void propagate(std::uint64_t node)
 	{
-		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 		{
 			propagateFromParent(node);
 		}
@@ -427,7 +462,7 @@ private:
 				m_nodes[m_nodes[node].child[1]].lazyType ^= s_lazyReverseBit;
 			}
 			std::swap(m_nodes[node].child[0], m_nodes[node].child[1]);
-			if constexpr (storeType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::PATH_DATA && storeType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 			{
 				updateValReplace(node, T::reverse(m_nodes[node].val));
 			}
@@ -436,45 +471,73 @@ private:
 
 		if constexpr (storeType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>)
 		{
-			if (m_nodes[node].lazyType & s_lazyUpdateReplaceBit)
+			if constexpr (storeType != StoreType::SUBQUERY_UPDATE_DATA)
 			{
-				if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
+				if (m_nodes[node].lazyType & s_lazyUpdateReplaceBit)
 				{
-					m_nodes[m_nodes[node].child[0]].lazyType &= s_lazyReverseBit;
-					m_nodes[m_nodes[node].child[0]].lazyType ^= s_lazyUpdateReplaceBit;
-					m_nodes[m_nodes[node].child[0]].lazyVal = m_nodes[node].lazyVal;
+					if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
+					{
+						m_nodes[m_nodes[node].child[0]].lazyType &= s_lazyReverseBit;
+						m_nodes[m_nodes[node].child[0]].lazyType ^= s_lazyUpdateReplaceBit;
+						m_nodes[m_nodes[node].child[0]].lazyVal = m_nodes[node].lazyVal;
+					}
+					if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
+					{
+						m_nodes[m_nodes[node].child[1]].lazyType &= s_lazyReverseBit;
+						m_nodes[m_nodes[node].child[1]].lazyType ^= s_lazyUpdateReplaceBit;
+						m_nodes[m_nodes[node].child[1]].lazyVal = m_nodes[node].lazyVal;
+					}
+					updateValReplace(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
+					m_nodes[node].lazyType ^= s_lazyUpdateReplaceBit;
+					m_nodes[node].lazyVal = T::s_neutralCalcLazyVal;
 				}
-				if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
+				else if (m_nodes[node].lazyType & s_lazyUpdateByBit)
 				{
-					m_nodes[m_nodes[node].child[1]].lazyType &= s_lazyReverseBit;
-					m_nodes[m_nodes[node].child[1]].lazyType ^= s_lazyUpdateReplaceBit;
-					m_nodes[m_nodes[node].child[1]].lazyVal = m_nodes[node].lazyVal;
+					if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
+					{
+						if (m_nodes[m_nodes[node].child[0]].lazyType ^ s_lazyUpdateReplaceBit)
+						{
+							m_nodes[m_nodes[node].child[0]].lazyType |= s_lazyUpdateByBit;
+						}
+						m_nodes[m_nodes[node].child[0]].lazyVal = T::calcLazy(m_nodes[m_nodes[node].child[0]].lazyVal, m_nodes[node].lazyVal);
+					}
+					if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
+					{
+						if (m_nodes[m_nodes[node].child[1]].lazyType ^ s_lazyUpdateReplaceBit)
+						{
+							m_nodes[m_nodes[node].child[1]].lazyType |= s_lazyUpdateByBit;
+						}
+						m_nodes[m_nodes[node].child[1]].lazyVal = T::calcLazy(m_nodes[m_nodes[node].child[1]].lazyVal, m_nodes[node].lazyVal);
+					}
+					updateValBy(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
+					m_nodes[node].lazyType ^= s_lazyUpdateByBit;
+					m_nodes[node].lazyVal = T::s_neutralCalcLazyVal;
 				}
-				updateValReplace(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
-				m_nodes[node].lazyType ^= s_lazyUpdateReplaceBit;
-				m_nodes[node].lazyVal = T::s_neutralCalcLazyVal;
 			}
-			else if (m_nodes[node].lazyType & s_lazyUpdateByBit)
+			else
 			{
-				if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
+				if (m_nodes[node].lazyType & s_lazyUpdateByBit)
 				{
-					if (m_nodes[m_nodes[node].child[0]].lazyType ^ s_lazyUpdateReplaceBit)
+					if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
 					{
-						m_nodes[m_nodes[node].child[0]].lazyType |= s_lazyUpdateByBit;
+						if (m_nodes[m_nodes[node].child[0]].lazyType ^ s_lazyUpdateReplaceBit)
+						{
+							m_nodes[m_nodes[node].child[0]].lazyType |= s_lazyUpdateByBit;
+						}
+						m_nodes[m_nodes[node].child[0]].lazyVal = T::calcLazy(m_nodes[m_nodes[node].child[0]].lazyVal, m_nodes[node].lazyVal);
 					}
-					m_nodes[m_nodes[node].child[0]].lazyVal = T::calcLazy(m_nodes[m_nodes[node].child[0]].lazyVal, m_nodes[node].lazyVal);
-				}
-				if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
-				{
-					if (m_nodes[m_nodes[node].child[1]].lazyType ^ s_lazyUpdateReplaceBit)
+					if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
 					{
-						m_nodes[m_nodes[node].child[1]].lazyType |= s_lazyUpdateByBit;
+						if (m_nodes[m_nodes[node].child[1]].lazyType ^ s_lazyUpdateReplaceBit)
+						{
+							m_nodes[m_nodes[node].child[1]].lazyType |= s_lazyUpdateByBit;
+						}
+						m_nodes[m_nodes[node].child[1]].lazyVal = T::calcLazy(m_nodes[m_nodes[node].child[1]].lazyVal, m_nodes[node].lazyVal);
 					}
-					m_nodes[m_nodes[node].child[1]].lazyVal = T::calcLazy(m_nodes[m_nodes[node].child[1]].lazyVal, m_nodes[node].lazyVal);
+					updateValBy(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
+					m_nodes[node].lazyType ^= s_lazyUpdateByBit;
+					m_nodes[node].lazyVal = T::s_neutralCalcLazyVal;
 				}
-				updateValBy(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
-				m_nodes[node].lazyType ^= s_lazyUpdateByBit;
-				m_nodes[node].lazyVal = T::s_neutralCalcLazyVal;
 			}
 		}
 	}
@@ -486,7 +549,7 @@ private:
 		for (std::uint64_t tmp = node; tmp != std::numeric_limits<std::uint64_t>::max(); tmp = m_nodes[tmp].parent)
 		{
 			splay(tmp);
-			if constexpr (storeType >= StoreType::ALL_DATA)
+			if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 			{
 				if (m_nodes[tmp].child[1] != std::numeric_limits<std::uint64_t>::max())
 				{
@@ -495,20 +558,23 @@ private:
 					{
 						propagate(m_nodes[tmp].child[1]);
 						recalc(m_nodes[tmp].child[1]);
-						m_nodes[tmp].virtualSubtreeVal = T::calcLazy(m_nodes[tmp].virtualSubtreeVal, m_nodes[m_nodes[tmp].child[1]].subtreeVal);
+						m_nodes[tmp].virtualSubtreeVal = T::calcLeft(m_nodes[tmp].virtualSubtreeVal, m_nodes[m_nodes[tmp].child[1]].subtreeVal);
 					}
 				}
 			}
 			m_nodes[tmp].child[1] = prev;
-			if constexpr (storeType >= StoreType::ALL_DATA)
+			if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 			{
 				if (prev != std::numeric_limits<std::uint64_t>::max())
 				{
 					m_nodes[tmp].virtualSubtreeSize -= m_nodes[prev].subtreeSize;
 					if constexpr (!std::is_same_v<T, Empty>)
 					{
-						propagateFromParent(prev);
-						m_nodes[tmp].virtualSubtreeVal = T::uncalcLazy(m_nodes[tmp].virtualSubtreeVal, m_nodes[prev].subtreeVal);
+						if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA)
+						{
+							propagateFromParent(prev);
+						}
+						m_nodes[tmp].virtualSubtreeVal = T::uncalc(m_nodes[tmp].virtualSubtreeVal, m_nodes[prev].subtreeVal);
 					}
 				}
 			}
@@ -552,7 +618,7 @@ private:
 				m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[1]].val : T::s_neutralCalcVal
 			);
 		}
-		if constexpr (storeType >= StoreType::ALL_DATA)
+		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 		{
 			m_nodes[node].subtreeSize =
 				(m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[0]].subtreeSize : 0)
@@ -646,7 +712,7 @@ private:
 			}
 		}
 		m_nodes[newParent].parent = m_nodes[node].parent;
-		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 		{
 			m_nodes[newParent].subtreeCancelVal = m_nodes[newParent].parent == std::numeric_limits<std::uint64_t>::max()
 				? T::s_neutralCalcLazyVal
@@ -654,7 +720,7 @@ private:
 		}
 
 		m_nodes[node].parent = newParent;
-		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 		{
 			if (m_nodes[newParent].child[!isRotateLeft] != std::numeric_limits<std::uint64_t>::max())
 			{
@@ -665,13 +731,13 @@ private:
 		if (m_nodes[node].child[isRotateLeft] != std::numeric_limits<std::uint64_t>::max())
 		{
 			m_nodes[m_nodes[node].child[isRotateLeft]].parent = node;
-			if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 			{
 				m_nodes[m_nodes[node].child[isRotateLeft]].subtreeCancelVal = m_nodes[node].subtreeAddedVal;
 			}
 		}
 		m_nodes[newParent].child[!isRotateLeft] = node;
-		if constexpr (storeType >= StoreType::ALL_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
 		{
 			m_nodes[node].subtreeCancelVal = m_nodes[newParent].subtreeAddedVal;
 		}
@@ -751,6 +817,11 @@ struct Min
 		return min;
 	}
 
+	static Min uncalc(const Min& min, const Min& uncalcMin)
+	{
+		return Min(min.key, min.min - uncalcMin.min);
+	}
+
 	static Min uncalcLazy(const Min& min, const Min& uncalcMin)
 	{
 		return Min(min.key - uncalcMin.key, min.min - uncalcMin.min);
@@ -815,6 +886,11 @@ struct Max
 		return max;
 	}
 
+	static Max uncalc(const Max& max, const Max& uncalcMax)
+	{
+		return Max(max.key, max.max - uncalcMax.max);
+	}
+
 	static Max uncalcLazy(const Max& max, const Max& uncalcMax)
 	{
 		return Max(max.key - uncalcMax.key, max.max - uncalcMax.max);
@@ -875,6 +951,11 @@ struct Sum
 	static Sum reverse(const Sum& sum)
 	{
 		return sum;
+	}
+
+	static Sum uncalc(const Sum& sum, const Sum& uncalcSum)
+	{
+		return Sum(sum.key, sum.sum - uncalcSum.sum);
 	}
 
 	static Sum uncalcLazy(const Sum& sum, const Sum& uncalcSum)
