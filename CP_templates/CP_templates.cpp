@@ -194,10 +194,3 @@ int main()
     
     return 0;
 }
-
-/*
-What (except explicitly template-defined) doesn't work together:
-1. {T with non-trivial reverse()} and {subtreeUpdate()}
-2. {T where uncalc() does not work} and {subtreeQuery()}
-3. {T where uncalcLazy() does not work} and {subtreeUpdate()}
-*/
