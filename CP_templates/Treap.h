@@ -19,6 +19,7 @@ public:
     {
         if (this != &treap)
         {
+            delete m_root;
             m_root = treap.m_root ? new Node(*treap.m_root) : nullptr;
         }
 
@@ -35,6 +36,7 @@ public:
     {
         if (this != &treap)
         {
+            delete m_root;
             m_root = treap.m_root;
             treap.m_root = nullptr;
         }

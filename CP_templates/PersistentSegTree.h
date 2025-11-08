@@ -42,10 +42,14 @@ public:
     {
         if (this != &tree)
         {
+            for (Node* root : m_roots)
+            {
+                delete root;
+            }
             m_baseSize = tree.m_baseSize;
-            m_roots = tree.m_roots;
-            tree.m_baseSize = 0;
+            m_roots = std::move(tree.m_roots);
             tree.m_roots.clear();
+            tree.m_baseSize = 0;
         }
 
         return *this;

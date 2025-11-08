@@ -21,6 +21,7 @@ public:
     {
         if (this != &lazyImplicitTreap)
         {
+            delete m_root;
             m_root = lazyImplicitTreap.m_root ? new Node(*lazyImplicitTreap.m_root) : nullptr;
         }
 
@@ -37,6 +38,7 @@ public:
     {
         if (this != &lazyImplicitTreap)
         {
+            delete m_root;
             m_root = lazyImplicitTreap.m_root;
             lazyImplicitTreap.m_root = nullptr;
         }
@@ -227,6 +229,8 @@ private:
             val{ node.val },
             lazy{ node.lazy },
             lazyType{ node.lazyType },
+            lazyReverse{ node.lazyReverse },
+            lazyClone{ node.lazyClone },
             priority{ node.priority },
             count{ node.count },
             weight{ node.weight },

@@ -41,7 +41,7 @@ public:
 			std::swap(i, j);
 		}
 
-		m_history.push({ j, m_parent[j], m_data[i], m_rank[i] == m_rank[j] });
+		m_history.push({ j, m_data[i], m_rank[i] == m_rank[j] });
 
 		m_parent[j] = i;
 		m_rank[i] += m_rank[i] == m_rank[j];
@@ -52,7 +52,7 @@ public:
 
 	void updateIsolatedNode(std::uint64_t i, const T& val)
 	{
-		m_history.push({ i, i, m_data[i], false });
+		m_history.push({ i, m_data[i], false });
 		m_data[i] = val;
 	}
 
@@ -72,7 +72,7 @@ public:
 		{
 			m_data[m_parent[m_history.top().node]] = m_history.top().newParentPrevData;
 			m_rank[m_parent[m_history.top().node]] -= m_history.top().causedRankIncrease;
-			m_parent[m_history.top().node] = m_history.top().prevParent;
+			m_parent[m_history.top().node] = m_history.top().node;
 			m_history.pop();
 		}
 	}
@@ -86,7 +86,6 @@ private:
 	struct Update
 	{
 		std::uint64_t node;
-		std::uint64_t prevParent;
 		T newParentPrevData;
 		bool causedRankIncrease;
 	};

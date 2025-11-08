@@ -21,6 +21,7 @@ public:
     {
         if (this != &implicitTreap)
         {
+            delete m_root;
             m_root = implicitTreap.m_root ? new Node(*implicitTreap.m_root) : nullptr;
         }
 
@@ -37,6 +38,7 @@ public:
     {
         if (this != &implicitTreap)
         {
+            delete m_root;
             m_root = implicitTreap.m_root;
             implicitTreap.m_root = nullptr;
         }

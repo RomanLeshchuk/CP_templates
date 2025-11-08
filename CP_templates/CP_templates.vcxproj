@@ -131,6 +131,7 @@
     <ClInclude Include="ConstMergeSortTree.h" />
     <ClInclude Include="DisjointSparseTable.h" />
     <ClInclude Include="DSU.h" />
+    <ClInclude Include="Hash.h" />
     <ClInclude Include="ImplicitTreap.h" />
     <ClInclude Include="LazyImplicitTreap.h" />
     <ClInclude Include="LazySegTree.h" />

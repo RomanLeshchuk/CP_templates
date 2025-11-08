@@ -94,16 +94,16 @@ private:
 
     T queryRecursive(std::uint64_t startPos, std::uint64_t lRange, std::uint64_t rRange, std::uint64_t l, std::uint64_t r)
     {
+        if (rRange < l || r < lRange)
+        {
+            return T{};
+        }
+
         this->propagate(startPos, lRange, rRange);
 
         if (l <= lRange && rRange <= r)
         {
             return m_tree[startPos];
-        }
-
-        if (rRange < l || r < lRange)
-        {
-            return T{};
         }
 
         std::uint64_t mid = (lRange + rRange) >> 1;
