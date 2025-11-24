@@ -30,7 +30,7 @@ public:
 		return m_parent[i] == i ? i : m_parent[i] = this->getRoot(m_parent[i]);
 	}
 
-	bool join(std::uint64_t i, std::uint64_t j)
+	void join(std::uint64_t i, std::uint64_t j)
 	{
 		i = this->getRoot(i);
 		j = this->getRoot(j);
@@ -43,8 +43,6 @@ public:
 		m_parent[j] = i;
 		m_rank[i] += m_rank[i] == m_rank[j];
 		m_data[i] = T::calc(m_data[i], m_data[j]);
-
-		return true;
 	}
 
 	void updateIsolatedNode(std::uint64_t i, const T& val)
