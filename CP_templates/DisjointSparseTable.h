@@ -16,7 +16,7 @@ public:
         {
             m_precomputedLogs[i] = m_precomputedLogs[i >> 1] + 1;
         }
-        m_table.resize(m_precomputedLogs[elems.size()] + 1, std::vector<T>(elems.size()));
+        m_table.resize(m_precomputedLogs[elems.size() - 1] + 1, std::vector<T>(elems.size()));
 
         for (std::uint64_t i = 0; i < m_table.size(); ++i)
         {
