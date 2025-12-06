@@ -26,6 +26,7 @@ public:
     {
         if (this != &tree)
         {
+            delete m_root;
             m_baseSize = tree.m_baseSize;
             m_root = tree.m_root ? new Node(*tree.m_root) : nullptr;
         }
@@ -45,6 +46,7 @@ public:
     {
         if (this != &tree)
         {
+            delete m_root;
             m_baseSize = tree.m_baseSize;
             m_root = tree.m_root;
             tree.m_baseSize = 0;

@@ -1,12 +1,11 @@
 #include <iostream>
 #include <string>
 
-#include "RollbackDSU.h"
+#include "MaxFlowMinCost.h"
 
 using namespace std;
 
 int main()
 {
-    RollbackDSU<Sum> dsu(10);
     return 0;
 }

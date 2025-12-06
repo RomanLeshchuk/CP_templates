@@ -137,6 +137,8 @@
     <ClInclude Include="LazySegTree.h" />
     <ClInclude Include="LazySparseSegTree.h" />
     <ClInclude Include="LinkCutTree.h" />
+    <ClInclude Include="MaxFlow.h" />
+    <ClInclude Include="MaxFlowMinCost.h" />
     <ClInclude Include="MergeSortTree.h" />
     <ClInclude Include="PersistentSegTree.h" />
     <ClInclude Include="RollbackDSU.h" />
