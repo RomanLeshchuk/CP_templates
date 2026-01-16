@@ -44,7 +44,7 @@ public:
 
 		m_nodes[a].child[1] = b;
 		m_nodes[b].parent = a;
-		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 		{
 			m_nodes[b].subtreeCancelVal = m_nodes[a].subtreeAddedVal;
 		}
@@ -64,7 +64,7 @@ public:
 			expose(b);
 
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
-			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 			{
 				m_nodes[a].subtreeCancelVal = T::s_neutralCalcLazyVal;
 			}
@@ -82,7 +82,7 @@ public:
 			expose(b);
 
 			m_nodes[a].parent = std::numeric_limits<std::uint64_t>::max();
-			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 			{
 				m_nodes[a].subtreeCancelVal = T::s_neutralCalcLazyVal;
 			}
@@ -169,7 +169,7 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>, T> queryPath(std::uint64_t a, std::uint64_t b)
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same<T, Empty>::value, T> queryPath(std::uint64_t a, std::uint64_t b)
 	{
 		if constexpr (preserveRoot)
 		{
@@ -192,7 +192,7 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && methodStoreType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updatePathReplace(std::uint64_t a, std::uint64_t b, const T& newVal)
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && methodStoreType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> updatePathReplace(std::uint64_t a, std::uint64_t b, const T& newVal)
 	{
 		if constexpr (preserveRoot)
 		{
@@ -217,7 +217,7 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>, void> updatePathBy(std::uint64_t a, std::uint64_t b, const T& updateVal)
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same<T, Empty>::value, void> updatePathBy(std::uint64_t a, std::uint64_t b, const T& updateVal)
 	{
 		if constexpr (preserveRoot)
 		{
@@ -250,7 +250,7 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_DATA && !std::is_same_v<T, Empty>, T> querySubtree(std::uint64_t a)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_DATA && !std::is_same<T, Empty>::value, T> querySubtree(std::uint64_t a)
 	{
 		expose(a);
 
@@ -258,7 +258,7 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeBy(std::uint64_t a, const T& updateVal)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> updateSubtreeBy(std::uint64_t a, const T& updateVal)
 	{
 		if (getRoot(a) == a)
 		{
@@ -395,10 +395,10 @@ private:
 		std::uint64_t virtualSubtreeSize = 0;
 	};
 
-	using Node = NodeTemplate<storeType, std::is_same_v<T, Empty>>;
+	using Node = NodeTemplate<storeType, std::is_same<T, Empty>::value>;
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && storeType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updateValReplace(std::uint64_t node, const T& newVal)
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && storeType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> updateValReplace(std::uint64_t node, const T& newVal)
 	{
 		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 		{
@@ -412,7 +412,7 @@ private:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>, void> updateValBy(std::uint64_t node, const T& updateVal)
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same<T, Empty>::value, void> updateValBy(std::uint64_t node, const T& updateVal)
 	{
 		m_nodes[node].val = T::calcLazy(m_nodes[node].val, updateVal);
 		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
@@ -422,7 +422,7 @@ private:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> updateSubtreeValBy(std::uint64_t node, const T& updateVal)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> updateSubtreeValBy(std::uint64_t node, const T& updateVal)
 	{
 		m_nodes[node].val = T::calcLazy(m_nodes[node].val, T::calcMany(updateVal, m_nodes[node].size));
 		m_nodes[node].virtualSubtreeVal = T::calcLazy(m_nodes[node].virtualSubtreeVal, T::calcMany(updateVal, m_nodes[node].virtualSubtreeSize));
@@ -431,7 +431,7 @@ private:
 	}
 
 	template <StoreType methodStoreType = storeType>
-	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>, void> propagateFromParent(std::uint64_t node)
+	std::enable_if_t<methodStoreType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> propagateFromParent(std::uint64_t node)
 	{
 		updateSubtreeValBy(node, T::uncalcLazy(
 			m_nodes[node].parent == std::numeric_limits<std::uint64_t>::max()
@@ -446,7 +446,7 @@ private:
 
 	void propagate(std::uint64_t node)
 	{
-		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 		{
 			propagateFromParent(node);
 		}
@@ -462,14 +462,14 @@ private:
 				m_nodes[m_nodes[node].child[1]].lazyType ^= s_lazyReverseBit;
 			}
 			std::swap(m_nodes[node].child[0], m_nodes[node].child[1]);
-			if constexpr (storeType >= StoreType::PATH_DATA && storeType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::PATH_DATA && storeType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 			{
 				updateValReplace(node, T::reverse(m_nodes[node].val));
 			}
 			m_nodes[node].lazyType ^= s_lazyReverseBit;
 		}
 
-		if constexpr (storeType >= StoreType::PATH_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::PATH_DATA && !std::is_same<T, Empty>::value)
 		{
 			if constexpr (storeType != StoreType::SUBQUERY_UPDATE_DATA)
 			{
@@ -554,7 +554,7 @@ private:
 				if (m_nodes[tmp].child[1] != std::numeric_limits<std::uint64_t>::max())
 				{
 					m_nodes[tmp].virtualSubtreeSize += m_nodes[m_nodes[tmp].child[1]].subtreeSize;
-					if constexpr (!std::is_same_v<T, Empty>)
+					if constexpr (!std::is_same<T, Empty>::value)
 					{
 						propagate(m_nodes[tmp].child[1]);
 						recalc(m_nodes[tmp].child[1]);
@@ -568,7 +568,7 @@ private:
 				if (prev != std::numeric_limits<std::uint64_t>::max())
 				{
 					m_nodes[tmp].virtualSubtreeSize -= m_nodes[prev].subtreeSize;
-					if constexpr (!std::is_same_v<T, Empty>)
+					if constexpr (!std::is_same<T, Empty>::value)
 					{
 						if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA)
 						{
@@ -593,7 +593,7 @@ private:
 	template <StoreType methodStoreType = storeType>
 	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA, void> recalc(std::uint64_t node)
 	{
-		if constexpr (!std::is_same_v<T, Empty>)
+		if constexpr (!std::is_same<T, Empty>::value)
 		{
 			if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
 			{
@@ -608,7 +608,7 @@ private:
 			(m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[0]].size : 0)
 			+ 1
 			+ (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[1]].size : 0);
-		if constexpr (!std::is_same_v<T, Empty>)
+		if constexpr (!std::is_same<T, Empty>::value)
 		{
 			m_nodes[node].val = T::calcLeft(
 				T::calcRight(
@@ -625,7 +625,7 @@ private:
 				+ 1
 				+ (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max() ? m_nodes[m_nodes[node].child[1]].subtreeSize : 0)
 				+ m_nodes[node].virtualSubtreeSize;
-			if constexpr (!std::is_same_v<T, Empty>)
+			if constexpr (!std::is_same<T, Empty>::value)
 			{
 				m_nodes[node].subtreeVal = T::calcLeft(
 					T::calcLeft(
@@ -712,7 +712,7 @@ private:
 			}
 		}
 		m_nodes[newParent].parent = m_nodes[node].parent;
-		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 		{
 			m_nodes[newParent].subtreeCancelVal = m_nodes[newParent].parent == std::numeric_limits<std::uint64_t>::max()
 				? T::s_neutralCalcLazyVal
@@ -720,7 +720,7 @@ private:
 		}
 
 		m_nodes[node].parent = newParent;
-		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 		{
 			if (m_nodes[newParent].child[!isRotateLeft] != std::numeric_limits<std::uint64_t>::max())
 			{
@@ -731,13 +731,13 @@ private:
 		if (m_nodes[node].child[isRotateLeft] != std::numeric_limits<std::uint64_t>::max())
 		{
 			m_nodes[m_nodes[node].child[isRotateLeft]].parent = node;
-			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+			if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 			{
 				m_nodes[m_nodes[node].child[isRotateLeft]].subtreeCancelVal = m_nodes[node].subtreeAddedVal;
 			}
 		}
 		m_nodes[newParent].child[!isRotateLeft] = node;
-		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same_v<T, Empty>)
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 		{
 			m_nodes[node].subtreeCancelVal = m_nodes[newParent].subtreeAddedVal;
 		}

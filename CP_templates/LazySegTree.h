@@ -143,8 +143,6 @@ private:
 
     void updateReplaceRecursive(std::uint64_t startPos, std::uint64_t lRange, std::uint64_t rRange, std::uint64_t l, std::uint64_t r, const T& val)
     {
-        this->propagate(startPos, lRange, rRange);
-
         if (l <= lRange && rRange <= r)
         {
             m_lazyType[startPos] = 2;
@@ -154,6 +152,8 @@ private:
 
             return;
         }
+
+        this->propagate(startPos, lRange, rRange);
 
         if (rRange < l || r < lRange)
         {
