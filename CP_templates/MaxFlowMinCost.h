@@ -11,12 +11,11 @@ class MaxFlowMinCost
 public:
 	MaxFlowMinCost(std::uint64_t n, std::uint64_t source, std::uint64_t sink) :
 		m_graph(n),
+		m_potential(n, std::numeric_limits<std::int64_t>::max()),
 		m_source{ source },
 		m_sink{ sink }
 	{
 	}
-
-	MaxFlowMinCost(const MaxFlowMinCost& maxFlowMinCost) = default;
 
 	void addEdgeDirected(std::uint64_t from, std::uint64_t to, std::uint64_t capacity, std::int64_t cost)
 	{
@@ -40,16 +39,15 @@ public:
 		addEdgeDirected(b, a, capacity, cost);
 	}
 
-	void passFlow(std::uint64_t flow)
+	void init()
 	{
-		std::vector<std::int64_t> potential(m_graph.size(), std::numeric_limits<std::int64_t>::max());
-		potential[m_source] = 0;
+		m_potential[m_source] = 0;
 
 		for (std::uint64_t i = 0; i < m_graph.size() - 1; ++i)
 		{
 			for (std::uint64_t j = 0; j < m_graph.size(); ++j)
 			{
-				if (potential[j] == std::numeric_limits<std::int64_t>::max())
+				if (m_potential[j] == std::numeric_limits<std::int64_t>::max())
 				{
 					continue;
 				}
@@ -57,31 +55,32 @@ public:
 				{
 					if (edgeToNxt.flow)
 					{
-						potential[edgeToNxt.to] = std::min(potential[edgeToNxt.to], potential[j] + edgeToNxt.cost);
+						m_potential[edgeToNxt.to] = std::min(m_potential[edgeToNxt.to], m_potential[j] + edgeToNxt.cost);
 					}
 				}
 			}
 		}
+	}
 
-		std::int64_t sinkCumulativePotential = 0;
-
-		while (potential[m_sink] != std::numeric_limits<std::int64_t>::max())
+	void passFlow(std::uint64_t flow)
+	{
+		while (flow && m_potential[m_sink] != std::numeric_limits<std::int64_t>::max())
 		{
-			sinkCumulativePotential += potential[m_sink];
+			m_sinkCumulativePotential += m_potential[m_sink];
 
 			for (std::uint64_t i = 0; i < m_graph.size(); ++i)
 			{
 				for (Edge& edgeToNxt : m_graph[i])
 				{
-					if (potential[i] != std::numeric_limits<std::int64_t>::max()
-						&& potential[edgeToNxt.to] != std::numeric_limits<std::int64_t>::max())
+					if (m_potential[i] != std::numeric_limits<std::int64_t>::max()
+						&& m_potential[edgeToNxt.to] != std::numeric_limits<std::int64_t>::max())
 					{
-						edgeToNxt.cost += potential[i] - potential[edgeToNxt.to];
+						edgeToNxt.cost += m_potential[i] - m_potential[edgeToNxt.to];
 					}
 				}
 			}
 
-			while (true)
+			while (flow)
 			{
 				std::vector<std::uint64_t> dist(m_graph.size(), std::numeric_limits<std::uint64_t>::max());
 				std::queue<std::uint64_t> bfs{};
@@ -105,13 +104,14 @@ public:
 					break;
 				}
 
-				std::uint64_t currPassedFlow = dfs(dist, m_source, flow);
+				std::vector<std::uint64_t> ptr(m_graph.size());
+				std::uint64_t currPassedFlow = dfs(dist, ptr, m_source, flow);
 				m_passedFlow += currPassedFlow;
-				m_passedFlowCost += currPassedFlow * sinkCumulativePotential;
+				m_passedFlowCost += currPassedFlow * m_sinkCumulativePotential;
 				flow -= currPassedFlow;
 			}
 
-			std::fill(potential.begin(), potential.end(), std::numeric_limits<std::int64_t>::max());
+			std::fill(m_potential.begin(), m_potential.end(), std::numeric_limits<std::int64_t>::max());
 
 			std::priority_queue<
 				std::pair<std::int64_t, std::uint64_t>,
@@ -125,16 +125,16 @@ public:
 				std::pair<std::int64_t, std::uint64_t> v = q.top();
 				q.pop();
 
-				if (potential[v.second] != std::numeric_limits<std::int64_t>::max())
+				if (m_potential[v.second] != std::numeric_limits<std::int64_t>::max())
 				{
 					continue;
 				}
 
-				potential[v.second] = v.first;
+				m_potential[v.second] = v.first;
 
 				for (const Edge& edgeToNxt : m_graph[v.second])
 				{
-					if (edgeToNxt.flow && potential[edgeToNxt.to] == std::numeric_limits<std::int64_t>::max())
+					if (edgeToNxt.flow && m_potential[edgeToNxt.to] == std::numeric_limits<std::int64_t>::max())
 					{
 						q.push({ v.first + edgeToNxt.cost, edgeToNxt.to });
 					}
@@ -212,7 +212,7 @@ private:
 		std::int64_t cost;
 	};
 
-	std::uint64_t dfs(std::vector<std::uint64_t>& dist, std::uint64_t v, std::uint64_t flow)
+	std::uint64_t dfs(std::vector<std::uint64_t>& dist, std::vector<std::uint64_t>& ptr, std::uint64_t v, std::uint64_t flow)
 	{
 		if (v == m_sink)
 		{
@@ -220,31 +220,31 @@ private:
 		}
 
 		std::uint64_t currPassedFlow = 0;
-		for (Edge& edgeToNxt : m_graph[v])
+		for (std::uint64_t& i = ptr[v]; i < m_graph[v].size(); ++i)
 		{
+			if (!m_graph[v][i].flow || m_graph[v][i].cost || dist[m_graph[v][i].to] != dist[v] + 1)
+			{
+				continue;
+			}
+			std::uint64_t nxtPassedFlow = dfs(dist, ptr, m_graph[v][i].to, std::min(flow, m_graph[v][i].flow));
+			currPassedFlow += nxtPassedFlow;
+			flow -= nxtPassedFlow;
+			m_graph[v][i].flow -= nxtPassedFlow;
+			m_graph[m_graph[v][i].to][m_graph[v][i].backInd].flow += nxtPassedFlow;
 			if (!flow)
 			{
 				break;
 			}
-			if (!edgeToNxt.flow || edgeToNxt.cost || dist[edgeToNxt.to] != dist[v] + 1)
-			{
-				continue;
-			}
-			std::uint64_t nxtPassedFlow = dfs(dist, edgeToNxt.to, std::min(flow, edgeToNxt.flow));
-			currPassedFlow += nxtPassedFlow;
-			flow -= nxtPassedFlow;
-			edgeToNxt.flow -= nxtPassedFlow;
-			m_graph[edgeToNxt.to][edgeToNxt.backInd].flow += nxtPassedFlow;
 		}
-
-		dist[v] = std::numeric_limits<std::uint64_t>::max();
 
 		return currPassedFlow;
 	}
 
 	std::vector<std::vector<Edge>> m_graph;
+	std::vector<std::int64_t> m_potential;
 	std::uint64_t m_source;
 	std::uint64_t m_sink;
 	std::uint64_t m_passedFlow = 0;
 	std::int64_t m_passedFlowCost = 0;
+	std::int64_t m_sinkCumulativePotential = 0;
 };

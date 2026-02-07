@@ -55,6 +55,11 @@ public:
         return *this;
     }
 
+    std::uint64_t getRootsSize() const
+    {
+        return m_roots.size();
+    }
+
     T query(std::uint64_t root, std::uint64_t l, std::uint64_t r) const
     {
         return m_roots[root]->query(0, m_baseSize - 1, l, r);
