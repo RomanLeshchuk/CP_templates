@@ -138,7 +138,7 @@ private:
 
     std::uint64_t dfs(std::vector<std::uint64_t>& dist, std::vector<std::uint64_t>& ptr, std::uint64_t v, std::uint64_t flow)
     {
-        if (v == m_sink)
+        if (!flow || v == m_sink)
         {
             return flow;
         }
