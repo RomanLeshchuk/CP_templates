@@ -13,75 +13,51 @@ class PersistentSegTree
 {
 public:
     PersistentSegTree(std::uint64_t size) :
-        m_baseSize{ (std::uint64_t)1 << (std::uint64_t)std::ceil(std::log2(size)) },
-        m_roots{ new Node{} }
+        m_baseSize{ (std::uint64_t)1 << (std::uint64_t)std::ceil(std::log2(size)) }
     {
-        m_roots[0]->init(0, m_baseSize - 1, size - 1);
+        init(0, m_baseSize - 1, size - 1);
     }
 
     PersistentSegTree(const std::vector<T>& elems) :
-        m_baseSize{ (std::uint64_t)1 << (std::uint64_t)std::ceil(std::log2(elems.size())) },
-        m_roots{ new Node{} }
+        m_baseSize{ (std::uint64_t)1 << (std::uint64_t)std::ceil(std::log2(elems.size())) }
     {
-        m_roots[0]->init(0, m_baseSize - 1, elems.size() - 1, elems);
+        init(0, m_baseSize - 1, elems.size() - 1, elems);
     }
 
-    PersistentSegTree(const PersistentSegTree& tree) = delete;
+    PersistentSegTree(const PersistentSegTree& tree) = default;
 
-    PersistentSegTree& operator=(const PersistentSegTree& tree) = delete;
+    PersistentSegTree& operator=(const PersistentSegTree& tree) = default;
 
-    PersistentSegTree(PersistentSegTree&& tree) :
-        m_baseSize{ tree.m_baseSize },
-        m_roots{ std::move(tree.m_roots) }
+    PersistentSegTree(PersistentSegTree&& tree) = default;
+
+    PersistentSegTree& operator=(PersistentSegTree&& tree) = default;
+
+    std::uint64_t getInitRoot() const
     {
-        tree.m_baseSize = 0;
-        tree.m_roots.clear();
-    }
-
-    PersistentSegTree& operator=(PersistentSegTree&& tree)
-    {
-        if (this != &tree)
-        {
-            for (Node* root : m_roots)
-            {
-                delete root;
-            }
-            m_baseSize = tree.m_baseSize;
-            m_roots = std::move(tree.m_roots);
-            tree.m_roots.clear();
-            tree.m_baseSize = 0;
-        }
-
-        return *this;
-    }
-
-    std::uint64_t getRootsSize() const
-    {
-        return m_roots.size();
+        return 0;
     }
 
     T query(std::uint64_t root, std::uint64_t l, std::uint64_t r) const
     {
-        return m_roots[root]->query(0, m_baseSize - 1, l, r);
+        return queryNode(root, 0, m_baseSize - 1, l, r);
     }
 
     std::uint64_t update(std::uint64_t root, const std::vector<std::pair<std::uint64_t, T>>& changes)
     {
-        m_roots.push_back(m_roots[root]->update(0, m_baseSize - 1, changes, m_roots.size()));
-		return m_roots.size() - 1;
+        return updateNode(root, 0, m_baseSize - 1, changes);
     }
 
     std::int64_t leftBinSearch(const std::vector<std::uint64_t>& roots, std::int64_t l, std::int64_t r, std::function<bool(const std::vector<T>&)> func) const
     {
-        std::vector<std::pair<std::uint64_t, std::vector<const Node*>>> partsRoots{};
-        
+        std::vector<std::pair<std::uint64_t, std::vector<std::uint64_t>>> partsRoots{};
+
         for (std::uint64_t i = 0; i < roots.size(); i++)
         {
-            std::vector<std::pair<std::uint64_t, const Node*>> currRoots{};
-            m_roots[roots[i]]->getParts(1, 0, m_baseSize - 1, l, r, currRoots);
+            std::vector<std::pair<std::uint64_t, std::uint64_t>> currRoots{};
+            getParts(roots[i], 1, 0, m_baseSize - 1, l, r, currRoots);
             if (i == 0)
             {
-                partsRoots.resize(currRoots.size(), { -1, std::vector<const Node*>(roots.size()) });
+                partsRoots.resize(currRoots.size(), { -1, std::vector<std::uint64_t>(roots.size()) });
             }
             for (std::uint64_t j = 0; j < currRoots.size(); j++)
             {
@@ -96,16 +72,16 @@ public:
         std::vector<std::vector<T>> prefNodes(partsRoots.size(), std::vector<T>(roots.size()));
         for (std::uint64_t i = 0; i < roots.size(); i++)
         {
-            prefNodes[0][i] = partsRoots[0].second[i]->data;
+            prefNodes[0][i] = m_nodes[partsRoots[0].second[i]].data;
         }
         for (std::uint64_t i = 1; i < partsRoots.size(); i++)
         {
             for (std::uint64_t j = 0; j < roots.size(); j++)
             {
-                prefNodes[i][j] = T::calc(prefNodes[i - 1][j], partsRoots[i].second[j]->data);
+                prefNodes[i][j] = T::calc(prefNodes[i - 1][j], m_nodes[partsRoots[i].second[j]].data);
             }
         }
-        
+
         std::uint64_t partToBinSearch = 0;
         for (std::uint64_t i = 0; i < partsRoots.size() - 1; i++)
         {
@@ -119,33 +95,33 @@ public:
             }
         }
 
-        std::pair<std::uint64_t, std::vector<const Node*>> currNode = partsRoots[partToBinSearch];
+        std::pair<std::uint64_t, std::vector<std::uint64_t>> currNode = partsRoots[partToBinSearch];
         std::vector<T> cumulativePref = partToBinSearch ? prefNodes[partToBinSearch - 1] : std::vector<T>(roots.size());
 
         while (currNode.first < m_baseSize)
         {
             std::vector<T> currVal(roots.size());
-			for (std::uint64_t i = 0; i < roots.size(); i++)
-			{
-				currVal[i] = T::calc(cumulativePref[i], currNode.second[i]->lChild->data);
-			}
-            
+            for (std::uint64_t i = 0; i < roots.size(); i++)
+            {
+                currVal[i] = T::calc(cumulativePref[i], m_nodes[m_nodes[currNode.second[i]].lChild].data);
+            }
+
             if (func(currVal))
             {
-                std::vector<const Node*> currNodeRChilds(roots.size());
+                std::vector<std::uint64_t> currNodeRChilds(roots.size());
                 for (std::uint64_t i = 0; i < roots.size(); i++)
                 {
-                    currNodeRChilds[i] = currNode.second[i]->rChild;
+                    currNodeRChilds[i] = m_nodes[currNode.second[i]].rChild;
                 }
                 cumulativePref = currVal;
                 currNode = { (currNode.first << 1) + 1, currNodeRChilds };
             }
             else
             {
-                std::vector<const Node*> currNodeLChilds(roots.size());
+                std::vector<std::uint64_t> currNodeLChilds(roots.size());
                 for (std::uint64_t i = 0; i < roots.size(); i++)
                 {
-                    currNodeLChilds[i] = currNode.second[i]->lChild;
+                    currNodeLChilds[i] = m_nodes[currNode.second[i]].lChild;
                 }
                 currNode = { currNode.first << 1, currNodeLChilds };
             }
@@ -154,7 +130,7 @@ public:
         std::vector<T> currVal(roots.size());
         for (std::uint64_t i = 0; i < roots.size(); i++)
         {
-            currVal[i] = T::calc(cumulativePref[i], currNode.second[i]->data);
+            currVal[i] = T::calc(cumulativePref[i], m_nodes[currNode.second[i]].data);
         }
 
         if (func(currVal))
@@ -167,15 +143,15 @@ public:
 
     std::int64_t rightBinSearch(const std::vector<std::uint64_t>& roots, std::int64_t l, std::int64_t r, std::function<bool(const std::vector<T>&)> func) const
     {
-        std::vector<std::pair<std::uint64_t, std::vector<const Node*>>> partsRoots{};
+        std::vector<std::pair<std::uint64_t, std::vector<std::uint64_t>>> partsRoots{};
 
         for (std::uint64_t i = 0; i < roots.size(); i++)
         {
-            std::vector<std::pair<std::uint64_t, const Node*>> currRoots{};
-            m_roots[roots[i]]->getParts(1, 0, m_baseSize - 1, l, r, currRoots);
+            std::vector<std::pair<std::uint64_t, std::uint64_t>> currRoots{};
+            getParts(roots[i], 1, 0, m_baseSize - 1, l, r, currRoots);
             if (i == 0)
             {
-                partsRoots.resize(currRoots.size(), { -1, std::vector<const Node*>(roots.size()) });
+                partsRoots.resize(currRoots.size(), { -1, std::vector<std::uint64_t>(roots.size()) });
             }
             for (std::uint64_t j = 0; j < currRoots.size(); j++)
             {
@@ -190,13 +166,13 @@ public:
         std::vector<std::vector<T>> suffNodes(partsRoots.size(), std::vector<T>(roots.size()));
         for (std::uint64_t i = 0; i < roots.size(); i++)
         {
-            suffNodes.back()[i] = partsRoots.back().second[i]->data;
+            suffNodes.back()[i] = m_nodes[partsRoots.back().second[i]].data;
         }
         for (std::int64_t i = partsRoots.size() - 2; i >= 0; i--)
         {
             for (std::uint64_t j = 0; j < roots.size(); j++)
             {
-                suffNodes[i][j] = T::calc(partsRoots[i].second[j]->data, suffNodes[i + 1][j]);
+                suffNodes[i][j] = T::calc(m_nodes[partsRoots[i].second[j]].data, suffNodes[i + 1][j]);
             }
         }
 
@@ -213,7 +189,7 @@ public:
             }
         }
 
-        std::pair<std::uint64_t, std::vector<const Node*>> currNode = partsRoots[partToBinSearch];
+        std::pair<std::uint64_t, std::vector<std::uint64_t>> currNode = partsRoots[partToBinSearch];
         std::vector<T> cumulativeSuff = partToBinSearch + 1 != partsRoots.size() ? suffNodes[partToBinSearch + 1] : std::vector<T>(roots.size());
 
         while (currNode.first < m_baseSize)
@@ -221,25 +197,25 @@ public:
             std::vector<T> currVal(roots.size());
             for (std::uint64_t i = 0; i < roots.size(); i++)
             {
-                currVal[i] = T::calc(currNode.second[i]->rChild->data, cumulativeSuff[i]);
+                currVal[i] = T::calc(m_nodes[m_nodes[currNode.second[i]].rChild].data, cumulativeSuff[i]);
             }
 
             if (func(currVal))
             {
-                std::vector<const Node*> currNodeLChilds(roots.size());
+                std::vector<std::uint64_t> currNodeLChilds(roots.size());
                 for (std::uint64_t i = 0; i < roots.size(); i++)
                 {
-                    currNodeLChilds[i] = currNode.second[i]->lChild;
+                    currNodeLChilds[i] = m_nodes[currNode.second[i]].lChild;
                 }
                 cumulativeSuff = currVal;
                 currNode = { currNode.first << 1, currNodeLChilds };
             }
             else
             {
-                std::vector<const Node*> currNodeRChilds(roots.size());
+                std::vector<std::uint64_t> currNodeRChilds(roots.size());
                 for (std::uint64_t i = 0; i < roots.size(); i++)
                 {
-                    currNodeRChilds[i] = currNode.second[i]->rChild;
+                    currNodeRChilds[i] = m_nodes[currNode.second[i]].rChild;
                 }
                 currNode = { (currNode.first << 1) + 1, currNodeRChilds };
             }
@@ -248,200 +224,178 @@ public:
         std::vector<T> currVal(roots.size());
         for (std::uint64_t i = 0; i < roots.size(); i++)
         {
-            currVal[i] = T::calc(currNode.second[i]->data, cumulativeSuff[i]);
+            currVal[i] = T::calc(m_nodes[currNode.second[i]].data, cumulativeSuff[i]);
         }
 
         if (func(currVal))
         {
-			return currNode.first - m_baseSize;
+            return currNode.first - m_baseSize;
         }
 
         return currNode.first - m_baseSize + 1;
     }
 
-    ~PersistentSegTree()
-    {
-        for (Node* root : m_roots)
-        {
-            delete root;
-        }
-    }
-
 private:
-    class Node
+    struct Node
     {
-    public:
-        Node() = default;
-
-        void init(std::uint64_t lRange, std::uint64_t rRange, std::uint64_t maxR)
-        {
-            if (maxR < lRange)
-            {
-                return;
-            }
-
-            if (lRange != rRange)
-            {
-                std::uint64_t mid = (lRange + rRange) >> 1;
-
-                lChild = new Node{};
-                lChild->init(lRange, mid, maxR);
-                ownLeft = true;
-
-                rChild = new Node{};
-                rChild->init(mid + 1, rRange, maxR);
-                ownRight = true;
-            }
-        }
-
-        void init(std::uint64_t lRange, std::uint64_t rRange, std::uint64_t maxR, const std::vector<T>& elems)
-        {
-            if (maxR < lRange)
-            {
-                return;
-            }
-
-            if (lRange != rRange)
-            {
-                std::uint64_t mid = (lRange + rRange) >> 1;
-
-                lChild = new Node{};
-                lChild->init(lRange, mid, maxR, elems);
-                ownLeft = true;
-
-                rChild = new Node{};
-                rChild->init(mid + 1, rRange, maxR, elems);
-                ownRight = true;
-
-                data = T::calc(
-                    lChild->data,
-                    rChild->data
-                );
-            }
-            else
-            {
-                data = elems[lRange];
-            }
-        }
-
-        T query(std::uint64_t lRange, std::uint64_t rRange, std::uint64_t l, std::uint64_t r) const
-        {
-            if (l <= lRange && rRange <= r)
-            {
-                return data;
-            }
-
-            if (rRange < l || r < lRange)
-            {
-                return T{};
-            }
-
-            std::uint64_t mid = (lRange + rRange) >> 1;
-
-            return T::calc(
-                lChild->query(lRange, mid, l, r),
-                rChild->query(mid + 1, rRange, l, r)
-            );
-        }
-
-        Node* update(std::uint64_t lRange, std::uint64_t rRange, const std::vector<std::pair<std::uint64_t, T>>& changes, std::uint64_t newOwner) const
-        {
-            if (lRange == rRange)
-            {
-                Node* newNode = new Node{};
-                newNode->data = changes.back().second;
-
-                return newNode;
-            }
-
-            std::uint64_t mid = (lRange + rRange) >> 1;
-
-            std::vector<std::pair<std::uint64_t, T>> lChanges{};
-            std::vector<std::pair<std::uint64_t, T>> rChanges{};
-
-            for (const std::pair<std::uint64_t, T>& change : changes)
-            {
-                if (change.first <= mid)
-                {
-                    lChanges.push_back(change);
-                }
-                else
-                {
-                    rChanges.push_back(change);
-                }
-            }
-
-            Node* newNode = new Node{};
-
-            if (lChanges.size())
-            {
-                newNode->lChild = lChild->update(lRange, mid, lChanges, newOwner);
-                newNode->ownLeft = true;
-            }
-            else
-            {
-                newNode->lChild = lChild;
-            }
-
-            if (rChanges.size())
-            {
-                newNode->rChild = rChild->update(mid + 1, rRange, rChanges, newOwner);
-                newNode->ownRight = true;
-            }
-            else
-            {
-                newNode->rChild = rChild;
-            }
-
-            newNode->data = T::calc(
-                newNode->lChild->data,
-                newNode->rChild ? newNode->rChild->data : T{}
-            );
-
-            return newNode;
-        }
-
-        void getParts(std::uint64_t startPos, std::uint64_t lRange, std::uint64_t rRange, std::uint64_t l, std::uint64_t r,
-                    std::vector<std::pair<std::uint64_t, const Node*>>& partsRootsIndexes) const
-        {
-            if (l <= lRange && rRange <= r)
-            {
-                partsRootsIndexes.push_back(std::pair<std::uint64_t, const Node*>{ startPos, this });
-                return;
-            }
-
-            if (rRange < l || r < lRange)
-            {
-                return;
-            }
-
-            std::uint64_t mid = (lRange + rRange) >> 1;
-
-            this->lChild->getParts(startPos << 1, lRange, mid, l, r, partsRootsIndexes);
-            this->rChild->getParts((startPos << 1) + 1, mid + 1, rRange, l, r, partsRootsIndexes);
-        }
-
-        ~Node()
-        {
-            if (ownLeft)
-            {
-                delete lChild;
-            }
-            if (ownRight)
-            {
-                delete rChild;
-            }
-        }
-
-        Node* lChild = nullptr;
-        Node* rChild = nullptr;
-        bool ownLeft = false;
-        bool ownRight = false;
+        std::uint64_t lChild = std::numeric_limits<std::uint64_t>::max();
+        std::uint64_t rChild = std::numeric_limits<std::uint64_t>::max();
         T data{};
     };
 
+    std::uint64_t init(std::uint64_t lRange, std::uint64_t rRange, std::uint64_t maxR)
+    {
+        std::uint64_t curr = m_nodes.size();
+        m_nodes.push_back(Node{});
+
+        if (maxR < lRange)
+        {
+            return curr;
+        }
+
+        if (lRange != rRange)
+        {
+            std::uint64_t mid = (lRange + rRange) >> 1;
+
+            std::uint64_t l = init(lRange, mid, maxR);
+            std::uint64_t r = init(mid + 1, rRange, maxR);
+
+            m_nodes[curr].lChild = l;
+            m_nodes[curr].rChild = r;
+        }
+        return curr;
+    }
+
+    std::uint64_t init(std::uint64_t lRange, std::uint64_t rRange, std::uint64_t maxR, const std::vector<T>& elems)
+    {
+        std::uint64_t curr = m_nodes.size();
+        m_nodes.push_back(Node{});
+
+        if (maxR < lRange)
+        {
+            return curr;
+        }
+
+        if (lRange != rRange)
+        {
+            std::uint64_t mid = (lRange + rRange) >> 1;
+
+            std::uint64_t l = init(lRange, mid, maxR, elems);
+            std::uint64_t r = init(mid + 1, rRange, maxR, elems);
+
+            m_nodes[curr].lChild = l;
+            m_nodes[curr].rChild = r;
+
+            m_nodes[curr].data = T::calc(
+                m_nodes[l].data,
+                m_nodes[r].data
+            );
+        }
+        else
+        {
+            m_nodes[curr].data = elems[lRange];
+        }
+        return curr;
+    }
+
+    T queryNode(std::uint64_t node, std::uint64_t lRange, std::uint64_t rRange, std::uint64_t l, std::uint64_t r) const
+    {
+        if (l <= lRange && rRange <= r)
+        {
+            return m_nodes[node].data;
+        }
+
+        if (rRange < l || r < lRange)
+        {
+            return T{};
+        }
+
+        std::uint64_t mid = (lRange + rRange) >> 1;
+
+        return T::calc(
+            queryNode(m_nodes[node].lChild, lRange, mid, l, r),
+            queryNode(m_nodes[node].rChild, mid + 1, rRange, l, r)
+        );
+    }
+
+    std::uint64_t updateNode(std::uint64_t node, std::uint64_t lRange, std::uint64_t rRange, const std::vector<std::pair<std::uint64_t, T>>& changes)
+    {
+        std::uint64_t newNodeIdx = m_nodes.size();
+        m_nodes.push_back(Node{});
+
+        if (lRange == rRange)
+        {
+            m_nodes[newNodeIdx].data = changes.back().second;
+            return newNodeIdx;
+        }
+
+        std::uint64_t mid = (lRange + rRange) >> 1;
+
+        std::vector<std::pair<std::uint64_t, T>> lChanges{};
+        std::vector<std::pair<std::uint64_t, T>> rChanges{};
+
+        for (const std::pair<std::uint64_t, T>& change : changes)
+        {
+            if (change.first <= mid)
+            {
+                lChanges.push_back(change);
+            }
+            else
+            {
+                rChanges.push_back(change);
+            }
+        }
+
+        if (lChanges.size())
+        {
+            std::uint64_t l = updateNode(m_nodes[node].lChild, lRange, mid, lChanges);
+            m_nodes[newNodeIdx].lChild = l;
+        }
+        else
+        {
+            m_nodes[newNodeIdx].lChild = m_nodes[node].lChild;
+        }
+
+        if (rChanges.size())
+        {
+            std::uint64_t r = updateNode(m_nodes[node].rChild, mid + 1, rRange, rChanges);
+            m_nodes[newNodeIdx].rChild = r;
+        }
+        else
+        {
+            m_nodes[newNodeIdx].rChild = m_nodes[node].rChild;
+        }
+
+        m_nodes[newNodeIdx].data = T::calc(
+            m_nodes[m_nodes[newNodeIdx].lChild].data,
+            m_nodes[m_nodes[newNodeIdx].rChild].data
+        );
+
+        return newNodeIdx;
+    }
+
+    void getParts(std::uint64_t node, std::uint64_t startPos, std::uint64_t lRange, std::uint64_t rRange, std::uint64_t l, std::uint64_t r,
+        std::vector<std::pair<std::uint64_t, std::uint64_t>>& partsRootsIndexes) const
+    {
+        if (l <= lRange && rRange <= r)
+        {
+            partsRootsIndexes.push_back(std::pair<std::uint64_t, std::uint64_t>{ startPos, node });
+            return;
+        }
+
+        if (rRange < l || r < lRange)
+        {
+            return;
+        }
+
+        std::uint64_t mid = (lRange + rRange) >> 1;
+
+        getParts(m_nodes[node].lChild, startPos << 1, lRange, mid, l, r, partsRootsIndexes);
+        getParts(m_nodes[node].rChild, (startPos << 1) + 1, mid + 1, rRange, l, r, partsRootsIndexes);
+    }
+
     std::uint64_t m_baseSize;
-    std::vector<Node*> m_roots{};
+    std::vector<Node> m_nodes{};
 };
 
 struct Sum

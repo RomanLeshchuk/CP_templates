@@ -34,7 +34,8 @@ public:
 	void reroot(std::uint64_t a)
 	{
 		expose(a);
-		m_nodes[a].lazyType ^= s_lazyReverseBit;
+
+		m_nodes[a].lazyType |= s_lazyReverseBit;
 	}
 
 	void link(std::uint64_t a, std::uint64_t b)
@@ -91,6 +92,29 @@ public:
 			{
 				recalc(b);
 			}
+		}
+	}
+
+	bool isRoot(std::uint64_t a)
+	{
+		expose(a);
+
+		return m_nodes[a].child[0] == std::numeric_limits<std::uint64_t>::max();
+	}
+
+	void cutFromParent(std::uint64_t a)
+	{
+		expose(a);
+
+		m_nodes[m_nodes[a].child[0]].parent = std::numeric_limits<std::uint64_t>::max();
+		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
+		{
+			m_nodes[m_nodes[a].child[0]].subtreeCancelVal = T::s_neutralCalcLazyVal;
+		}
+		m_nodes[a].child[0] = std::numeric_limits<std::uint64_t>::max();
+		if constexpr (storeType >= StoreType::PATH_DATA)
+		{
+			recalc(a);
 		}
 	}
 
@@ -192,6 +216,34 @@ public:
 	}
 
 	template <StoreType methodStoreType = storeType>
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && !std::is_same<T, Empty>::value, T> queryPathToRoot(std::uint64_t a)
+	{
+		expose(a);
+
+		return m_nodes[a].val;
+	}
+
+	template <StoreType methodStoreType = storeType>
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && methodStoreType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> updatePointReplace(std::uint64_t a, const T& newVal)
+	{
+		expose(a);
+
+		m_nodes[a].val = newVal;
+
+		recalc(a);
+	}
+
+	template <StoreType methodStoreType = storeType>
+	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && methodStoreType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> updatePointBy(std::uint64_t a, const T& updateVal)
+	{
+		expose(a);
+
+		m_nodes[a].val = T::calcLazy(m_nodes[a].val, updateVal);
+
+		recalc(a);
+	}
+
+	template <StoreType methodStoreType = storeType>
 	std::enable_if_t<methodStoreType >= StoreType::PATH_DATA && methodStoreType != StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value, void> updatePathReplace(std::uint64_t a, std::uint64_t b, const T& newVal)
 	{
 		if constexpr (preserveRoot)
@@ -201,7 +253,7 @@ public:
 			reroot(a);
 			expose(b);
 
-			m_nodes[b].lazyType ^= s_lazyUpdateReplaceBit;
+			m_nodes[b].lazyType |= s_lazyUpdateReplaceBit;
 			m_nodes[b].lazyVal = newVal;
 
 			reroot(prevRoot);
@@ -211,7 +263,7 @@ public:
 			reroot(a);
 			expose(b);
 
-			m_nodes[b].lazyType ^= s_lazyUpdateReplaceBit;
+			m_nodes[b].lazyType |= s_lazyUpdateReplaceBit;
 			m_nodes[b].lazyVal = newVal;
 		}
 	}
@@ -226,7 +278,7 @@ public:
 			reroot(a);
 			expose(b);
 
-			m_nodes[b].lazyType ^= s_lazyUpdateByBit;
+			m_nodes[b].lazyType |= s_lazyUpdateByBit;
 			m_nodes[b].lazyVal = updateVal;
 
 			reroot(prevRoot);
@@ -236,7 +288,7 @@ public:
 			reroot(a);
 			expose(b);
 
-			m_nodes[b].lazyType ^= s_lazyUpdateByBit;
+			m_nodes[b].lazyType |= s_lazyUpdateByBit;
 			m_nodes[b].lazyVal = updateVal;
 		}
 	}
@@ -478,13 +530,13 @@ private:
 					if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
 					{
 						m_nodes[m_nodes[node].child[0]].lazyType &= s_lazyReverseBit;
-						m_nodes[m_nodes[node].child[0]].lazyType ^= s_lazyUpdateReplaceBit;
+						m_nodes[m_nodes[node].child[0]].lazyType |= s_lazyUpdateReplaceBit;
 						m_nodes[m_nodes[node].child[0]].lazyVal = m_nodes[node].lazyVal;
 					}
 					if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
 					{
 						m_nodes[m_nodes[node].child[1]].lazyType &= s_lazyReverseBit;
-						m_nodes[m_nodes[node].child[1]].lazyType ^= s_lazyUpdateReplaceBit;
+						m_nodes[m_nodes[node].child[1]].lazyType |= s_lazyUpdateReplaceBit;
 						m_nodes[m_nodes[node].child[1]].lazyVal = m_nodes[node].lazyVal;
 					}
 					updateValReplace(node, T::calcMany(m_nodes[node].lazyVal, m_nodes[node].size));
@@ -495,7 +547,7 @@ private:
 				{
 					if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
 					{
-						if (m_nodes[m_nodes[node].child[0]].lazyType ^ s_lazyUpdateReplaceBit)
+						if (!(m_nodes[m_nodes[node].child[0]].lazyType & s_lazyUpdateReplaceBit))
 						{
 							m_nodes[m_nodes[node].child[0]].lazyType |= s_lazyUpdateByBit;
 						}
@@ -503,7 +555,7 @@ private:
 					}
 					if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
 					{
-						if (m_nodes[m_nodes[node].child[1]].lazyType ^ s_lazyUpdateReplaceBit)
+						if (!(m_nodes[m_nodes[node].child[1]].lazyType & s_lazyUpdateReplaceBit))
 						{
 							m_nodes[m_nodes[node].child[1]].lazyType |= s_lazyUpdateByBit;
 						}
@@ -520,7 +572,7 @@ private:
 				{
 					if (m_nodes[node].child[0] != std::numeric_limits<std::uint64_t>::max())
 					{
-						if (m_nodes[m_nodes[node].child[0]].lazyType ^ s_lazyUpdateReplaceBit)
+						if (!(m_nodes[m_nodes[node].child[0]].lazyType & s_lazyUpdateReplaceBit))
 						{
 							m_nodes[m_nodes[node].child[0]].lazyType |= s_lazyUpdateByBit;
 						}
@@ -528,7 +580,7 @@ private:
 					}
 					if (m_nodes[node].child[1] != std::numeric_limits<std::uint64_t>::max())
 					{
-						if (m_nodes[m_nodes[node].child[1]].lazyType ^ s_lazyUpdateReplaceBit)
+						if (!(m_nodes[m_nodes[node].child[1]].lazyType & s_lazyUpdateReplaceBit))
 						{
 							m_nodes[m_nodes[node].child[1]].lazyType |= s_lazyUpdateByBit;
 						}
@@ -654,12 +706,13 @@ private:
 			if (!isSplayRoot(m_nodes[node].parent))
 			{
 				propagate(m_nodes[m_nodes[node].parent].parent);
+				propagate(m_nodes[node].parent);
+				propagate(node);
 			}
-			propagate(m_nodes[node].parent);
-			propagate(node);
-
-			if (isSplayRoot(m_nodes[node].parent))
+			else
 			{
+				propagate(m_nodes[node].parent);
+				propagate(node);
 				if (node == m_nodes[m_nodes[node].parent].child[0])
 				{
 					rotate<false>(m_nodes[node].parent);
@@ -668,8 +721,10 @@ private:
 				{
 					rotate<true>(m_nodes[node].parent);
 				}
+				return;
 			}
-			else if (m_nodes[node].parent == m_nodes[m_nodes[m_nodes[node].parent].parent].child[0])
+
+			if (m_nodes[node].parent == m_nodes[m_nodes[m_nodes[node].parent].parent].child[0])
 			{
 				if (node == m_nodes[m_nodes[node].parent].child[0])
 				{
