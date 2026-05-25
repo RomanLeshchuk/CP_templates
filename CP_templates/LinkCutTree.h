@@ -43,13 +43,23 @@ public:
 		reroot(b);
 		expose(a);
 
-		m_nodes[a].child[1] = b;
 		m_nodes[b].parent = a;
+
+		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
+		{
+			m_nodes[a].virtualSubtreeSize += m_nodes[b].subtreeSize;
+			if constexpr (!std::is_same<T, Empty>::value)
+			{
+				m_nodes[a].virtualSubtreeVal = T::calcLeft(m_nodes[a].virtualSubtreeVal, m_nodes[b].subtreeVal);
+			}
+		}
+
 		if constexpr (storeType >= StoreType::SUBQUERY_UPDATE_DATA && !std::is_same<T, Empty>::value)
 		{
 			m_nodes[b].subtreeCancelVal = m_nodes[a].subtreeAddedVal;
 		}
-		if constexpr (storeType >= StoreType::PATH_DATA)
+
+		if constexpr (storeType >= StoreType::SUBQUERY_DATA)
 		{
 			recalc(a);
 		}
@@ -703,13 +713,7 @@ private:
 
 		while (!isSplayRoot(node))
 		{
-			if (!isSplayRoot(m_nodes[node].parent))
-			{
-				propagate(m_nodes[m_nodes[node].parent].parent);
-				propagate(m_nodes[node].parent);
-				propagate(node);
-			}
-			else
+			if (isSplayRoot(m_nodes[node].parent))
 			{
 				propagate(m_nodes[node].parent);
 				propagate(node);
@@ -723,6 +727,10 @@ private:
 				}
 				return;
 			}
+
+			propagate(m_nodes[m_nodes[node].parent].parent);
+			propagate(m_nodes[node].parent);
+			propagate(node);
 
 			if (m_nodes[node].parent == m_nodes[m_nodes[m_nodes[node].parent].parent].child[0])
 			{
@@ -807,7 +815,7 @@ private:
 	bool isSplayRoot(std::uint64_t node) const
 	{
 		return m_nodes[node].parent == std::numeric_limits<std::uint64_t>::max()
-			|| (m_nodes[m_nodes[node].parent].child[0] != node && m_nodes[m_nodes[node].parent].child[1] != node);
+			|| m_nodes[m_nodes[node].parent].child[0] != node && m_nodes[m_nodes[node].parent].child[1] != node;
 	}
 
 	std::vector<Node> m_nodes;
